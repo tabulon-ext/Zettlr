@@ -1,6 +1,6 @@
 <template>
   <div>
-    <p v-html="projectsIntro"></p>
+    <p>{{ projectsIntro }}</p>
 
     <div id="project-container">
       <div class="project-box" onclick="window.location = 'https://github.com/dsifford/astrocite'">
@@ -9,14 +9,6 @@
         </h4>
         <p class="project-description">
           A safe parser from BibTex to CSL JSON
-        </p>
-      </div>
-      <div class="project-box" onclick="window.location = 'https://www.chartjs.org/'">
-        <h4 class="project-name">
-          Chart.js
-        </h4>
-        <p class="project-description">
-          Simple HTML5 Charts using the &lt;canvas&gt; tag
         </p>
       </div>
       <div class="project-box" onclick="window.location = 'https://github.com/paulmillr/chokidar'">
@@ -59,12 +51,12 @@
           Generation of diagrams and flowcharts from text in a similar manner as Markdown
         </p>
       </div>
-      <div class="project-box" onclick="window.location = 'https://github.com/wooorm/nspell/'">
+      <div class="project-box" onclick="window.location = 'https://github.com/Wulf/nodehun'">
         <h4 class="project-name">
-          nspell
+          nodehun
         </h4>
         <p class="project-description">
-          Hunspell compatible spell-checker
+          The Hunspell binding for NodeJS that exposes as much of Hunspell as possible and also adds new features.
         </p>
       </div>
       <div class="project-box" onclick="window.location = 'http://showdownjs.com/'">
@@ -111,7 +103,7 @@
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -127,17 +119,9 @@
  * END HEADER
  */
 
-import { trans } from '../common/i18n-renderer'
-import { defineComponent } from 'vue'
+import { trans } from '@common/i18n-renderer'
 
-export default defineComponent({
-  name: 'ProjectsTab',
-  data: function () {
-    return {
-      projectsIntro: trans('dialog.about.other_projects')
-    }
-  }
-})
+const projectsIntro = trans('Zettlr also makes use of these projects:')
 </script>
 
 <style lang="less">

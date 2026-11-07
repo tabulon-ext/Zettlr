@@ -1,0 +1,79 @@
+<template>
+  <div
+    v-bind:id="`toolbar-${props.control.id}`"
+    role="presentation"
+    class="toolbar-text"
+    v-bind:style="{
+      textAlign: props.control.align
+    }"
+  >
+    <strong v-if="props.control.style === 'strong'">
+      <template v-if="Array.isArray(props.control.content)">
+        <template v-for="line in props.control.content" v-bind:key="line">
+          {{ line }}<br />
+        </template>
+      </template>
+      <template v-else>
+        {{ props.control.content }}
+      </template>
+    </strong>
+    <em v-else-if="props.control.style === 'emphasis'">
+      <template v-if="Array.isArray(props.control.content)">
+        <template v-for="line in props.control.content" v-bind:key="line">
+          {{ line }}<br />
+        </template>
+      </template>
+      <template v-else>
+        {{ props.control.content }}
+      </template>
+    </em>
+    <span v-else>
+      <template v-if="Array.isArray(props.control.content)">
+        <template v-for="line in props.control.content" v-bind:key="line">
+          {{ line }}<br />
+        </template>
+      </template>
+      <template v-else>
+        {{ props.control.content }}
+      </template>
+    </span>
+  </div>
+</template>
+
+<script setup lang="ts">
+/**
+ * @ignore
+ * BEGIN HEADER
+ *
+ * Contains:        Text
+ * CVM-Role:        View
+ * Maintainer:      Hendrik Erz
+ * License:         GNU GPL v3
+ *
+ * Description:     Not to be confused with the form Text component. This one
+ *                  here displays text read-only.
+ *
+ * END HEADER
+ */
+
+export interface ToolbarTextControl {
+  id?: string
+  type: 'text'
+  style?: 'strong'|'emphasis'
+  align: 'left'|'center'|'right'
+  content: string|string[]
+  // Allow arbitrary properties that we ignore
+  [key: string]: unknown
+}
+
+const props = defineProps<{ control: ToolbarTextControl }>()
+</script>
+
+<style lang="less">
+body .toolbar-text {
+  font-size: 11px;
+  text-wrap: nowrap;
+  padding: 0 10px;
+  width: fit-content; // constrain the text width to accommodate content changes.
+}
+</style>

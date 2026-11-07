@@ -1,36 +1,41 @@
 <template>
-  <div>
-    <h4>Export</h4>
-    <SelectControl
-      v-model="format"
-      v-bind:label="'Format'"
-      v-bind:options="availableFormats"
-    ></SelectControl>
-    <!-- Here we can enumerate options for the currently selected format. -->
-    <Form
-      v-if="formSchema.fieldsets.length > 0"
-      ref="form"
-      v-bind:model="currentOptions"
-      v-bind:schema="formSchema"
-      v-on:input="handleInput"
-    ></Form>
-    <!-- The choice of working directory vs. temporary applies to all exporters -->
-    <hr>
-    <RadioControl
-      v-model="exportDirectory"
-      v-bind:options="{
-        'temp': 'Temporary directory',
-        'cwd': 'Current directory'
-      }"
-    ></RadioControl>
-    <!-- Add the exporting button -->
-    <button v-on:click="doExport">
-      Export
-    </button>
-  </div>
+  <PopoverWrapper v-bind:target="target" v-on:close="$emit('close')">
+    <div class="toolbar-export">
+      <h3>Export</h3>
+      <p><strong>{{ filename }}</strong></p>
+      <SelectControl
+        v-model="format"
+        v-bind:label="formatLabel"
+        v-bind:options="availableFormats"
+      ></SelectControl>
+      <!-- The choice of working directory vs. temporary applies to all exporters -->
+      <hr>
+      <RadioControl
+        v-model="exportDirectory"
+        v-bind:options="{
+          'temp': tempDirLabel,
+          'cwd': cwdLabel,
+          'ask': askLabel
+        }"
+      ></RadioControl>
+      <hr>
+      <CheckboxControl
+        v-model="autoOpenExport"
+        v-bind:label="autoOpenLabel"
+        v-bind:name="'open-automatically-checkbox'"
+      ></CheckboxControl>
+      <!-- Add the exporting button -->
+      <button
+        ref="exportButton"
+        v-bind:disabled="isExporting" v-on:click="doExport"
+      >
+        {{ exportButtonLabel }}
+      </button>
+    </div>
+  </PopoverWrapper>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -45,100 +50,198 @@
  * END HEADER
  */
 
-import RadioControl from '../common/vue/form/elements/Radio'
-import SelectControl from '../common/vue/form/elements/Select'
-import Form from '../common/vue/form/Form'
+import PopoverWrapper from '@common/vue/PopoverWrapper.vue'
+import RadioControl from '@common/vue/form/elements/RadioControl.vue'
+import SelectControl from '@common/vue/form/elements/SelectControl.vue'
+import CheckboxControl from '@common/vue/form/elements/CheckboxControl.vue'
+import { ref, computed, watch, onMounted } from 'vue'
+import type { AssetsProviderIPCAPI, PandocProfileMetadata } from '@providers/assets'
+import { SUPPORTED_READERS } from '@common/pandoc-util/pandoc-maps'
+import { trans } from '@common/i18n-renderer'
+import { pathBasename } from '@common/util/renderer-path-polyfill'
+import { useConfigStore } from 'source/pinia'
+import { parseReaderWriter } from 'source/common/pandoc-util/parse-reader-writer'
+import type { CustomExportIPCAPI, ExportIPCAPI } from 'source/app/service-providers/commands/export'
 
 const ipcRenderer = window.ipc
 
-export default {
-  name: 'PopoverExport',
-  components: {
-    SelectControl,
-    RadioControl,
-    Form
-  },
-  data: function () {
-    return {
-      shouldExport: false, // As soon as this becomes true, we can export
-      format: 'html',
-      exportDirectory: 'temp',
-      exporterInfo: [],
-      currentOptions: {}
-    }
-  },
-  computed: {
-    popoverData: function () {
-      return {
-        shouldExport: this.shouldExport,
-        format: this.format,
-        formatOptions: this.currentOptions,
-        exportTo: this.exportDirectory
-      }
-    },
-    availableFormats: function () {
-      const formats = {}
-      for (const info of this.exporterInfo) {
-        for (const format in info.formats) {
-          formats[format] = info.formats[format]
-        }
-      }
-      return formats
-    },
-    formSchema: function () {
-      for (const info of this.exporterInfo) {
-        if (this.format in info.formats) {
-          // Finally return the options
-          return {
-            fieldsets: [info.options]
-          }
-        }
-      }
-      return { fieldsets: [] }
-    }
-  },
-  watch: {
-    formSchema: function () {
-      this.currentOptions = {}
-      for (const info of this.exporterInfo) {
-        if (this.format in info.formats) {
-          for (const option of info.options) {
-            this.currentOptions[option.model] = option.initialValue
-          }
-        }
-      }
-    },
-    exportDirectory: function () {
-      // This watcher allows the user to set the export directory from here
-      global.config.set('export.dir', this.exportDirectory)
-    }
-  },
-  created: function () {
-    ipcRenderer.invoke('application', {
-      command: 'get-available-export-formats'
-    })
-      .then(exporterInformation => {
-        // Save all the exporter information into the array. The computed
-        // properties will take the info from that array and re-compute based
-        // on the value of "format".
-        this.exporterInfo = exporterInformation
-      })
-      .catch(err => console.error(err))
+const formatLabel = trans('Format')
+const autoOpenLabel = trans('Open after export')
+const tempDirLabel = trans('Temporary directory')
+const cwdLabel = trans('Current directory')
+const askLabel = trans('Select directory')
 
-    // Preset the export directory
-    this.exportDirectory = global.config.get('export.dir')
-  },
-  methods: {
-    doExport: function () {
-      this.shouldExport = true
-    },
-    handleInput: function (prop, val) {
-      this.currentOptions[prop] = val
+// This is used to limit the number of selected
+// profile to filename mappings in the config
+const PREVIOUSLY_SELECTED_PROFILE_LIMIT = 50
+
+const exportButton = ref<HTMLButtonElement|null>(null)
+
+ipcRenderer.invoke('assets-provider', { command: 'list-export-profiles' } as AssetsProviderIPCAPI)
+  .then((defaults: PandocProfileMetadata[]) => {
+    // Save all the exporter information into the array. The computed
+    // properties will take the info from that array and re-compute based
+    // on the value of "format".
+    profileMetadata.value = defaults
+    // Get either the last selected exporter for the open file,
+    // the last used exporter, or the first element available
+    const lastProfile = selectedProfiles.value.find(item => item.filePath === props.filePath)
+    const profile = lastProfile ? lastProfile.profile : lastUsedProfile.value
+
+    if (profile in availableFormats.value) {
+      format.value = profile
+    } else {
+      format.value = profileMetadata.value[0].name
     }
+  })
+  .catch(err => console.error(err))
+
+const configStore = useConfigStore()
+
+const props = defineProps<{
+  target: HTMLElement
+  filePath: string
+}>()
+
+const emit = defineEmits<(e: 'close') => void>()
+
+onMounted(() => {
+  exportButton.value?.focus()
+})
+
+const isExporting = ref(false)
+const format = ref('')
+const exportDirectory = ref(configStore.config.export.dir)
+const autoOpenExport = ref(configStore.config.export.autoOpenExportedFiles)
+const profileMetadata = ref<PandocProfileMetadata[]>([])
+
+const customCommands = computed(() => configStore.config.export.customCommands)
+const selectedProfiles = computed(() => configStore.config.export.selectedProfiles)
+const lastUsedProfile = computed(() => configStore.config.export.lastUsedProfile)
+
+const exportButtonLabel = computed(() => isExporting.value ? trans('Exporting…') : trans('Export'))
+const filename = computed(() => pathBasename(props.filePath))
+const availableFormats = computed(() => {
+  const selectOptions: Record<string, string> = {}
+
+  profileMetadata.value
+    // Remove files that cannot read any of Zettlr's internal formats ...
+    .filter(e => {
+      return SUPPORTED_READERS.includes(parseReaderWriter(e.reader).name)
+    })
+    // ... and add the others to the available options
+    .forEach(elem => { selectOptions[elem.name] = getDisplayText(elem) })
+
+  const cmdTitle = trans('command')
+  for (const command of customCommands.value) {
+    selectOptions[command.command] = `${command.displayName} (${cmdTitle})`
   }
+
+  return selectOptions
+})
+
+watch(autoOpenExport, function (value) {
+  // This watcher allows the user to control whether
+  // the exported document is automatically opened
+  configStore.setConfigValue('export.autoOpenExportedFiles', value)
+})
+
+watch(exportDirectory, function (value) {
+  // This watcher allows the user to set the export directory from here
+  configStore.setConfigValue('export.dir', value)
+})
+
+watch(format, function (value) {
+  // Remember the last choice
+  const prof = profileMetadata.value.find(e => e.name === value)
+  const cmd = customCommands.value.find(x => x.command === value)
+
+  const profile: string  = prof?.name ?? cmd?.command ?? lastUsedProfile.value
+  const filePath: string = props.filePath
+
+  const newProfiles = selectedProfiles.value
+    // Remove any previous items with the same path
+    .filter(item  => item.filePath !== filePath)
+    // Clamp the list to the last N - 1 items since we will be pushing one
+    .slice(-PREVIOUSLY_SELECTED_PROFILE_LIMIT - 1)
+
+  newProfiles.push({ filePath, profile })
+
+  configStore.setConfigValue('export.selectedProfiles', JSON.parse(JSON.stringify(newProfiles)))
+  configStore.setConfigValue('export.lastUsedProfile', profile)
+})
+
+function doExport (): void {
+  const customCommand = customCommands.value.find(x => x.command === format.value)
+  const profile = profileMetadata.value.find(e => e.name === format.value)
+  isExporting.value = true
+
+  if (customCommand !== undefined) {
+    // Run the custom command exporter
+    ipcRenderer.invoke('application', {
+      command: 'custom-export',
+      payload: {
+        displayName: customCommand.displayName,
+        file: props.filePath
+      } satisfies CustomExportIPCAPI
+    })
+      .finally(() => {
+        isExporting.value = false
+        emit('close')
+      })
+      .catch(e => console.error(e))
+  } else {
+    // Run the regular exporter
+    ipcRenderer.invoke('application', {
+      command: 'export',
+      payload: {
+        profile: JSON.parse(JSON.stringify(profile)),
+        exportTo: exportDirectory.value,
+        file: props.filePath
+      } satisfies ExportIPCAPI
+    })
+      .finally(() => {
+        isExporting.value = false
+        emit('close')
+      })
+      .catch(e => console.error(e))
+  }
+}
+
+function getDisplayText (item: PandocProfileMetadata): string {
+  const name = item.name.substring(0, item.name.lastIndexOf('.'))
+  return `${name} (${item.writer})`
 }
 </script>
 
 <style lang="less">
-//
+body {
+  .toolbar-export {
+    margin: 5px;
+
+    h3, p, strong {
+      text-align: center;
+      padding-bottom: 5px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    button {
+      width: stretch;
+      margin: 5px;
+    }
+
+    .form-control {
+      padding: 5px;
+      select {
+          margin-top: 5px;
+        }
+    }
+
+    .radio-group-container {
+      margin: 5px;
+    }
+  }
+}
 </style>
+@common/util/renderer-path-polyfill

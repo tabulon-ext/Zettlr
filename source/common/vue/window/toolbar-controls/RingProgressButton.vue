@@ -1,47 +1,21 @@
 <template>
-  <button
-    v-bind:id="`toolbar-${control.id}`"
-    role="button"
-    v-on:click="$emit('click')"
-  >
-    <svg
-      class="progress-ring"
-      v-bind:style="{
-        width: circleSize,
-        height: circleSize
-      }"
+  <div class="toolbar-group">
+    <button
+      v-bind:id="`toolbar-${props.control.id ?? ''}`"
+      role="button"
+      class="ring-progress"
+      v-on:click="emit('click')"
     >
-      <!-- Always-on circle -->
-      <circle
-        stroke="#aaaaaa"
-        fill="transparent"
-        v-bind:stroke-width="lineWidth"
-        v-bind:r="circleRadius"
-        v-bind:cx="circleSize / 2"
-        v-bind:cy="circleSize / 2"
-      ></circle>
-      <!-- Actual progress circle -->
-      <circle
-        v-bind:stroke="trackColour"
-        fill="transparent"
-        v-bind:style="{
-          'stroke-dasharray': `${circleCircumference} ${circleCircumference}`,
-          'stroke-dashoffset': circleOffset,
-          'transition': 'stroke-dashoffset 0.35s',
-          'transform': 'rotate(-90deg)',
-          'transform-origin': '50% 50%'
-        }"
-        v-bind:stroke-width="lineWidth"
-        v-bind:r="circleRadius"
-        v-bind:cx="circleSize / 2"
-        v-bind:cy="circleSize / 2"
-      />
-    </svg>
-    <span v-html="control.label"></span>
-  </button>
+      <RingProgress
+        v-bind:ratio="props.control.progressPercent / 100"
+        v-bind:color="props.control.trackColour"
+      ></RingProgress>
+      <span>{{ props.control.label }}</span>
+    </button>
+  </div>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -60,53 +34,34 @@
  * END HEADER
  */
 
-export default {
-  name: 'RingProgressControl',
-  props: {
-    control: {
-      type: Object,
-      default: function () { return {} }
-    },
-    progressPercent: {
-      type: Number,
-      default: 0
-    }
-  },
-  emits: ['click'],
-  computed: {
-    lineWidth: function () {
-      return 2
-    },
-    circleSize: function () {
-      return 20
-    },
-    circleCircumference: function () {
-      return this.circleRadius * 2 * Math.PI
-    },
-    circleRadius: function () {
-      return (this.circleSize / 2) - (this.lineWidth * 2)
-    },
-    circleOffset: function () {
-      return this.circleCircumference - this.progressPercent / 100 * this.circleCircumference
-    },
-    trackColour: function () {
-      if (this.control.colour !== undefined) {
-        return this.control.colour
-      } else {
-        return '#ff3388'
-      }
-    }
-  }
+import RingProgress from './RingProgress.vue'
+
+export interface RingProgressButtonControl {
+  type: 'ring'
+  id?: string
+  progressPercent: number
+  trackColour?: string
+  label?: string
+  // Allow arbitrary properties that we ignore
+  [key: string]: unknown
 }
+
+const props = defineProps<{
+  control: RingProgressButtonControl
+}>()
+
+const emit = defineEmits<(e: 'click') => void>()
 </script>
 
-<style lang="less">
-body button svg.progress-ring {
+<style lang="css" scoped>
+button svg.progress-ring {
   margin: 0;
   padding: 0;
 }
 
-body.linux button svg.progress-ring {
-  margin: 1px; // Center the SVG on the middle of the button, see also Toolbar.vue
+button.ring-progress {
+  padding: 0;
+  margin: 0;
+  display: block;
 }
 </style>

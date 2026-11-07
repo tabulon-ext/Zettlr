@@ -27,6 +27,11 @@ fileAssociations:
   isPackage: false
 directories:
   output: release
+# DEBUG: Remove once Electron Builder has been updated to v27 such that we can
+# once more move with their update cadence.
+# reference: https://www.electron.build/v26/docs/appimage#toolsets
+toolsets:
+  appimage: 1.0.3
 #
 # Generic macOS options
 #
@@ -49,22 +54,26 @@ win:
   - nsis
   artifactName: "Zettlr-${version}-${arch}.${ext}"
   icon: "./resources/icons/icon.ico"
+  # New signing options for use with Azure Trusted Signing
+  azureSignOptions:
+    publisherName: "Hendrik Erz"
+    endpoint: "https://neu.codesigning.azure.net/"
+    certificateProfileName: "zettlr-code-sign-cert"
+    codeSigningAccountName: "zettlr"
 #
 # Generic Linux options
 #
 linux:
   target:
   - AppImage
-  - deb
-  - rpm
-  - zip
   artifactName: "Zettlr-${version}-${arch}.${ext}"
   executableName: Zettlr
   synopsis: Markdown editor
   category: Office
   icon: "./resources/icons/png"
   desktop:
-    StartupWMClass: zettlr
+    entry:
+      StartupWMClass: zettlr
 #
 # Configuration for DMG builds
 #
@@ -89,18 +98,7 @@ nsis:
   perMachine: false
   allowElevation: true
   allowToChangeInstallationDirectory: true
-  uninstallDisplayName: Uninstall ${productName}
+  uninstallDisplayName: ${productName}
   installerHeader: "./resources/NSIS/NSISinstallerHeader.bmp"
   installerSidebar: "./resources/NSIS/NSISinstallerSidebar.bmp"
   license: ./LICENSE
-#
-# Configuration for Debian builds
-#
-deb:
-  priority: optional
-  compression: xz
-#
-# Configuration for Fedora builds
-#
-rpm:
-  compression: xz

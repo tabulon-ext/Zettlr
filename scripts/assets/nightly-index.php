@@ -1,3 +1,62 @@
+<?php
+  // Define a few crude helper functions. First a basic file size formatter,
+  // and then a function that gives out relative dates for our purposes. It's
+  // easier to define these functions here rather than importing Carbon et al.
+  function format_size ($size) {
+    if (gettype($size) !== 'integer') {
+      // An error occurred
+      return 'unknown';
+    } else if ($size > 1000000000) {
+      // Size in Gigabyte
+      return round($size / 1000000000, 2) . ' GB';
+    } else if ($size > 1000000) {
+      // Size in Megabyte
+      return round($size / 1000000, 2) . ' MB';
+    } else if ($size > 1000) {
+      // Size in Kilobyte
+      return round($size / 1000, 2) . ' KB';
+    } else {
+      // Size in Byte
+      return $size . ' B';
+    }
+  }
+
+  function relative_time ($time) {
+    // This function formats the given time to relative
+    if (gettype($time) !== 'integer') {
+      // An error occurred
+      return 'unknown';
+    }
+
+    $now = time();
+    $duration_minutes = round(($now - $time) / 60);
+    if ($duration_minutes < 5) {
+      // Less than five minutes ago
+      return 'just now';
+    } else if ($duration_minutes < 60) {
+      // Less than an hour ago
+      return round($duration_minutes) . " minutes ago";
+    } else if ($duration_minutes < 120) {
+      // Less than two hours ago
+      return '1 hour ago';
+    } else if ($duration_minutes < 60 * 24) {
+      // Less than a day ago
+      $hours = round($duration_minutes / 60);
+      return "$hours hours ago";
+    } else if ($duration_minutes < 60 * 24 * 2) {
+      // Less than two days ago
+      return 'yesterday';
+    } else if ($duration_minutes < 60 * 24 * 7) {
+      // Less than a week ago
+      $days = round($duration_minutes / (60 * 24));
+      return "$days days ago";
+    } else {
+      // Give out a proper format
+      return date('D M jS, Y H:i:s', $time);
+    }
+  }
+?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -29,23 +88,31 @@
     }
 
     body {
+      color: black;
       width: 100vw;
       height: 100vh;
       margin: 0;
       padding: 0;
-      background-image: linear-gradient(90deg, #ddd 0%, #fff 20%, #fff 80%, #ddd 100%);
+      background-color: white;
+    }
+
+    /* Helper highlight class */
+    .highlight {
+      color:rgb(28, 100, 178);
     }
 
     /** Links */
 
     a, a:link, a:visited {
       color: #1cb27e;
+    }
+
+    table a, table a:link, table a:visited {
       text-decoration: none;
     }
 
     a:hover {
-      color: white;
-      background-color: #1cb27e;
+      text-decoration: none;
     }
 
     /** Tables */
@@ -118,6 +185,14 @@
       background-color: #1cb27e;
       color: white;
     }
+
+    /* Dark mode */
+    @media (prefers-color-scheme: dark) {
+      body {
+        color: white;
+        background-color: #222222;
+      }
+    }
   </style>
 </head>
 <body>
@@ -131,7 +206,7 @@
       <a href="https://www.zettlr.com/" target="_blank">Homepage</a> &bullet;
       <a href="https://www.zettlr.com/download" target="_blank">Download stable releases</a> &bullet;
       <a href="https://github.com/Zettlr/Zettlr" target="_blank">GitHub</a> &bullet;
-      <a href="https://forum.zettlr.com" target="_blank">Forum</a>
+      <a href="https://go.zettlr.com/discord" target="_blank">Discord</a>
     </div>
   </div>
 
@@ -164,17 +239,27 @@
         corrupted configuration files, or maybe even corrupted operating systems.
       </strong>
     </p>
+    <p>
+    <?php
+      // Output the scriptfile's last mod date (= last build time)
+      $scriptfile_mod = filemtime(__FILE__);
+      $last_modified = date('D M jS, Y H:i:s', $scriptfile_mod);
+      echo "The nightlies have last been built on <strong class=\"highlight\">$last_modified</strong>.";
+    ?>
+    </p>
     <table>
         <thead>
           <tr>
             <th>File</th>
-            <th>Size</th>
-            <th>Last modified</th>
+            <th style="text-align: right;">Size</th>
+            <th style="text-align: right;">Last modified</th>
           </tr>
         </thead>
         <tbody>
           <?php
             $dir = scandir('.');
+
+            $assets = [];
 
             foreach ($dir as $key => $name) {
               if (is_dir('.' . DIRECTORY_SEPARATOR . $name)) {
@@ -186,40 +271,22 @@
               }
 
               // At this point we have a correct file. So display it.
+              $assets[] = $name;
+            }
 
-              $time = filemtime('.' . DIRECTORY_SEPARATOR . $name);
-              if ($time === false) {
-                // An error occurred
-                $time = 'unknown';
-              } else {
-                // Format the time
-                $time = date('D M jS, Y H:i:s', $time);
+            if (count($assets) > 0) {
+              foreach ($assets as $name) {
+                $time = relative_time(filemtime('.' . DIRECTORY_SEPARATOR . $name));
+                $size = format_size(filesize('.' . DIRECTORY_SEPARATOR . $name));
+
+                echo "<tr>";
+                echo "<td><a href=\"$name\">$name</a></td>";
+                echo "<td style=\"text-align: right;\">$size</td>";
+                echo "<td style=\"text-align: right;\">$time</td>";
+                echo "</tr>";
               }
-
-              $size = filesize('.' . DIRECTORY_SEPARATOR . $name);
-
-              if ($size === false) {
-                // An error occurred
-                $size = 'unknown';
-              } else if ($size > 1000000000) {
-                // Size in Gigabyte
-                $size = round($size / 1000000000, 2) . ' GB';
-              } else if ($size > 1000000) {
-                // Size in Megabyte
-                $size = round($size / 1000000, 2) . ' MB';
-              } else if ($size > 1000) {
-                // Size in Kilobyte
-                $size = round($size / 1000, 2) . ' KB';
-              } else {
-                // Size in Byte
-                $size = $size . ' B';
-              }
-
-              echo "<tr>";
-              echo "<td><a href=\"$name\">$name</a></td>";
-              echo "<td style=\"text-align: right;\">$size</td>";
-              echo "<td style=\"text-align: right;\">$time</td>";
-              echo "</tr>";
+            } else {
+              echo "<tr><td colspan=\"3\">No downloadable assets found.</td></tr>";
             }
           ?>
         </tbody>

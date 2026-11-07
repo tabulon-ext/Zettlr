@@ -14,42 +14,9 @@
  * END HEADER
  */
 
-import { trans } from '../../i18n-renderer'
-const ipcRenderer = (window as any).ipc as Electron.IpcRenderer
-
-const TEMPLATE: AnyMenuItem[] = [
-  {
-    id: 'cut',
-    label: 'menu.cut',
-    accelerator: 'CmdOrCtrl+X',
-    type: 'normal',
-    enabled: true
-  },
-  {
-    id: 'copy',
-    label: 'menu.copy',
-    accelerator: 'CmdOrCtrl+C',
-    type: 'normal',
-    enabled: true
-  },
-  {
-    id: 'paste',
-    label: 'menu.paste',
-    accelerator: 'CmdOrCtrl+V',
-    type: 'normal',
-    enabled: true
-  },
-  {
-    type: 'separator'
-  },
-  {
-    id: 'selectAll',
-    label: 'menu.select_all',
-    accelerator: 'CmdOrCtrl+A',
-    type: 'normal',
-    enabled: true
-  }
-]
+import { trans } from '@common/i18n-renderer'
+import showPopupMenu, { type AnyMenuItem, type Point } from '@common/modules/window-register/application-menu-helper'
+const ipcRenderer = window.ipc
 
 // The following type-attributes can receive copy and paste commands
 const TEXT_INPUT_TYPES = [
@@ -63,7 +30,7 @@ const TEXT_INPUT_TYPES = [
 ]
 
 // Holds the current close callback
-let currentCallback: Function|null = null
+let currentCallback: null|(() => void) = null
 
 /**
  * Registers listeners for default context menus for anything text related
@@ -102,43 +69,40 @@ export default function registerDefaultContextMenu (): void {
 
 function displayContextMenu (posX: number, posY: number, target: HTMLInputElement): void {
   // First build the menu
-  const items: AnyMenuItem[] = []
-
-  for (let element of TEMPLATE) {
-    const buildItem: any = {}
-    const modifies = element.type !== 'separator' && [ 'cut', 'paste' ].includes(element.id)
-
-    switch (element.type) {
-      case 'normal':
-        buildItem.id = element.id
-        buildItem.label = trans(element.label)
-        buildItem.enabled = element.enabled
-        buildItem.accelerator = element.accelerator
-        buildItem.type = element.type
-        break
-      case 'checkbox':
-      case 'radio':
-        buildItem.id = element.id
-        buildItem.label = trans(element.label)
-        buildItem.enabled = element.enabled
-        buildItem.accelerator = element.accelerator
-        buildItem.type = element.type
-        buildItem.checked = element.checked
-        break
-      case 'separator':
-        buildItem.type = element.type
-        break
+  const items: AnyMenuItem[] = [
+    {
+      id: 'cut',
+      label: trans('Cut'),
+      accelerator: 'CmdOrCtrl+X',
+      type: 'normal',
+      enabled: !target.readOnly // Only enable if target is not readonly
+    },
+    {
+      id: 'copy',
+      label: trans('Copy'),
+      accelerator: 'CmdOrCtrl+C',
+      type: 'normal'
+    },
+    {
+      id: 'paste',
+      label: trans('Paste'),
+      accelerator: 'CmdOrCtrl+V',
+      type: 'normal',
+      enabled: !target.readOnly // Only enable if target is not readonly
+    },
+    {
+      type: 'separator'
+    },
+    {
+      id: 'selectAll',
+      label: trans('Select all'),
+      accelerator: 'CmdOrCtrl+A',
+      type: 'normal'
     }
-
-    if (modifies && target.readOnly) {
-      buildItem.enabled = false
-    }
-
-    items.push(buildItem)
-  }
+  ]
 
   const point: Point = { x: posX, y: posY }
-  currentCallback = global.menuProvider.show(point, items, (clickedID: string) => {
+  currentCallback = showPopupMenu(point, items, (clickedID: string) => {
     // In this easy instance, we can simply send the ID to main ...
     ipcRenderer.send('window-controls', { command: clickedID })
     // ... and re-focus the input

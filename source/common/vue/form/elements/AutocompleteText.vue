@@ -1,52 +1,42 @@
 <template>
-  <div v-bind:class="{ 'inline': inline, 'form-control': true }">
-    <label v-if="label" v-bind:for="fieldID" v-html="label"></label>
-    <!-- AutocompleteText is being implemented as a search for easy emptying of the field -->
+  <div v-bind:class="{ 'autocomplete-element': true, inline: inline === true, 'form-control': true }">
+    <label v-if="label" v-bind:for="fieldId">{{ label }}</label>
     <input
-      v-bind:id="fieldID"
-      ref="input"
+      v-bind:id="fieldId"
+      ref="inputField"
+      v-model="thisValue"
       type="search"
-      v-bind:value="modelValue"
-      v-bind:class="{ 'inline': inline }"
-      v-bind:placeholder="placeholder"
-      v-on:input="$emit('update:modelValue', $event.target.value)"
-      v-on:keydown.enter="confirmSelection()"
-      v-on:keydown.tab.prevent="confirmSelection()"
-      v-on:keydown.esc="$emit('escape', $event.target.value)"
-      v-on:keydown.down="selectNextMatch()"
-      v-on:keydown.up="selectPrevMatch()"
-      v-on:focus="onFocusHandler"
-      v-on:blur="onBlurHandler"
-    >
-    <!-- Display the completion list -->
-    <div
-      v-if="inputHasFocus && modelValue !== ''"
-      ref="autocomplete-dropdown"
-      class="autocomplete-list"
-      v-bind:style="{
-        'left': $refs.input.getBoundingClientRect().left + 'px',
-        'width': $refs.input.getBoundingClientRect().width + 'px',
-        'max-height': '150px'
+      v-bind:class="{
+        inline: inline === true,
+        'autocomplete-nput': true
       }"
+      v-bind:placeholder="placeholder"
+      v-on:focusin="onInputFocus"
+      v-on:focusout="onInputBlur"
+      v-on:keydown="onKeyPress"
     >
+
+    <div class="autocomplete-list-wrapper">
       <div
-        v-for="match, idx in matches"
-        v-bind:key="idx"
-        v-bind:class="{
-          'autocomplete-list-item': true,
-          'active': selectedMatch === idx
-        }"
-        v-on:mouseover="selectedMatch = idx"
-        v-on:mousedown.prevent.stop="confirmSelection()"
-        v-on:keyup.tab="confirmSelection()"
+        v-bind:id="`${fieldId}-list`"
+        v-bind:class="{ 'autocomplete-list': true, hidden: !showOptions || visibleSuggestions.length < 2 }"
       >
-        {{ match }}
+        <option
+          v-for="(option, idx) in visibleSuggestions"
+          v-bind:key="idx"
+          v-bind:value="option"
+          v-bind:class="{ active: activeOption === idx }"
+          v-on:mousedown="thisValue = option"
+          v-on:mouseenter="activeOption = idx"
+        >
+          {{ option }}
+        </option>
       </div>
     </div>
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -56,193 +46,159 @@
  * Maintainer:      Hendrik Erz
  * License:         GNU GPL v3
  *
- * Description:     Displays a text input with autocomplete functionality. NOTE:
- *                  This file is likely going to be relocated to common/vue/form
+ * Description:     Displays a text input with autocomplete functionality.
  *
  * END HEADER
  */
 
-import { nextTick } from 'vue'
+import { ref, computed, watch, toRef, nextTick } from 'vue'
 
-export default {
-  name: 'AutocompleteText',
-  props: {
-    modelValue: {
-      type: String,
-      default: ''
-    },
-    placeholder: {
-      type: String,
-      default: ''
-    },
-    label: {
-      type: String,
-      default: ''
-    },
-    name: {
-      type: String,
-      default: ''
-    },
-    inline: {
-      type: Boolean,
-      default: false
-    },
-    autocompleteValues: {
-      type: Array,
-      default: function () { return [] }
+const props = defineProps<{
+  modelValue: string
+  placeholder: string
+  label: string
+  name: string
+  inline?: boolean
+  autocompleteValues: string[]
+}>()
+
+const visibleSuggestions = computed(() => {
+  const q = thisValue.value.toLowerCase()
+  return props.autocompleteValues.filter(item => item.toLowerCase().includes(q))
+})
+
+const emit = defineEmits<(e: 'update:modelValue', val: string) => void>()
+
+/**
+ * Value updating logic
+ */
+const thisValue = ref<string>(props.modelValue)
+const showOptions = ref(false)
+const activeOption = ref(-1)
+
+function onInputFocus () {
+  showOptions.value = true
+}
+
+function onInputBlur () {
+  showOptions.value = false
+  activeOption.value = -1
+}
+
+function onKeyPress (event: KeyboardEvent) {
+  if (event.isComposing) {
+    return // Keys belong to the IME while it is composing
+  }
+
+  if (visibleSuggestions.value.length === 0) {
+    return // Can't navigate an empty list
+  }
+
+  let keyHandled = false
+  if (event.key === 'ArrowDown') {
+    keyHandled = true
+    activeOption.value++
+    if (activeOption.value > visibleSuggestions.value.length - 1) {
+      activeOption.value = 0
     }
-  },
-  emits: [ 'update:modelValue', 'blur', 'escape', 'confirm' ],
-  data: function () {
-    return {
-      inputHasFocus: false,
-      selectedMatch: -1,
-      matches: []
+    maybeScrollOptionIntoView()
+  } else if (event.key === 'ArrowUp') {
+    keyHandled = true
+    activeOption.value--
+    if (activeOption.value < 0) {
+      activeOption.value = visibleSuggestions.value.length - 1
     }
-  },
-  computed: {
-    fieldID: function () {
-      return 'field-input-' + this.name
-    }
-  },
-  watch: {
-    modelValue: function (newVal, oldVal) {
-      // Whenever the value changes, update the list of matches
-      this.updateMatches()
-    }
-  },
-  methods: {
-    confirmSelection: function () {
-      // This method emits a confirm event, either with the text value or, if
-      // one is highlighted, an autocomplete result.
-      if (this.selectedMatch > -1) {
-        this.$emit('confirm', this.matches[this.selectedMatch])
-      } else {
-        this.$emit('confirm', this.modelValue)
-      }
-      this.$refs.input.blur() // We are done here and can blur the list
-    },
-    selectNextMatch: function () {
-      if (this.selectedMatch + 1 < this.matches.length) {
-        this.selectedMatch += 1
-      } else {
-        this.selectedMatch = 0
-      }
-
-      // After the changes have been applied to the DOM,
-      // scroll the new match into view
-      nextTick().then(() => { this.scrollMatchIntoView() })
-        .catch(err => console.error(err))
-    },
-    selectPrevMatch: function () {
-      if (this.selectedMatch - 1 >= 0) {
-        this.selectedMatch -= 1
-      } else {
-        this.selectedMatch = this.matches.length - 1
-      }
-      // After the changes have been applied to the DOM,
-      // scroll the new match into view
-      nextTick().then(() => { this.scrollMatchIntoView() })
-        .catch(err => console.error(err))
-    },
-    scrollMatchIntoView: function () {
-      // Called whenever the match changes to scroll it into view.
-      const dropdown = this.$refs['autocomplete-dropdown']
-
-      if (dropdown == null) {
-        return // The dropdown was not shown
-      }
-
-      const activeElem = dropdown.querySelector('.active')
-
-      if (activeElem === null) {
-        return // No active element in the list
-      }
-
-      // You have no idea how much code I wrote before I found that function lol
-      activeElem.scrollIntoView({ block: 'nearest' })
-    },
-    updateMatches: function () {
-      // This function updates the matches with a list of strings that match
-      this.matches = []
-      const lowerVal = this.modelValue.toLocaleLowerCase()
-      for (const suggestion of this.autocompleteValues) {
-        if (suggestion.toLocaleLowerCase().indexOf(lowerVal) > -1) {
-          this.matches.push(suggestion)
-        }
-      }
-
-      // Make sure to check for out of bounds
-      if (this.matches.length === 0) {
-        this.selectedMatch = -1
-      } else if (this.selectedMatch >= this.matches.length) {
-        this.selectedMatch = this.matches.length - 1
-      }
-    },
-    onFocusHandler: function (event) {
-      this.inputHasFocus = true
-    },
-    onBlurHandler: function (event) {
-      this.inputHasFocus = false
-      this.$emit('blur', event.target.modelValue)
+    maybeScrollOptionIntoView()
+  } else if (event.key === 'Enter') {
+    if (activeOption.value > -1 && visibleSuggestions.value.length > 1) {
+      keyHandled = true
+      thisValue.value = visibleSuggestions.value[activeOption.value] ?? ''
     }
   }
+
+  if (keyHandled) {
+    event.preventDefault()
+    event.stopPropagation()
+  }
 }
+
+function maybeScrollOptionIntoView () {
+  nextTick()
+    .then(() => {
+      const option = document.querySelector(`#${fieldId.value}-list option:nth-child(${activeOption.value})`)
+      if (option === null) {
+        return
+      }
+      option.scrollIntoView()
+    })
+    .catch(err => console.error(err))
+}
+
+watch(toRef(props, 'modelValue'), (newVal) => {
+  thisValue.value = newVal
+})
+
+watch(thisValue, () => {
+  emit('update:modelValue', thisValue.value)
+})
+
+// Utilities
+const inputField = ref<HTMLInputElement|null>(null)
+const fieldId = computed<string>(() => 'field-input' + props.name)
+
+function focus (): void {
+  inputField.value?.focus()
+}
+
+function blur (): void {
+  inputField.value?.blur()
+}
+
+function select (): void {
+  inputField.value?.select()
+}
+
+defineExpose({ focus, blur, select })
 </script>
 
-<style lang="less">
-body div.form-control label {
-  font-size: 12px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-}
+<style lang="css" scoped>
+div.autocomplete-element {
+  div.autocomplete-list-wrapper {
+    position: relative;
+    height: 0px;
+  }
 
-body {
   div.autocomplete-list {
     position: absolute;
-    max-height: 250px;
+    top: 0;
+    left: 0;
+    right: 0;
+    max-height: 150px; /* DEBUG */
     overflow-y: auto;
-    overflow-x: hidden;
-    background-color: rgb(250, 250, 250);
-    border: 1px solid rgb(180, 180, 180);
-    box-shadow: 0px 0px 10px 2px rgba(0, 0, 0, .2);
-    border-radius: 6px;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0px 0px 5px 0px rgba(0, 0, 0, .2);
+    z-index: 1;
 
-    div.autocomplete-list-item {
-      white-space: nowrap;
-      overflow-x: hidden;
-      border-radius: 4px;
-      padding: 4px;
-      font-size: 11px;
-      margin: 5px;
-
-      &:hover, &.active {
-        background-color: rgb(235, 235, 235);
-      }
+    &.hidden {
+      display: none;
     }
-  }
 
-  &.dark {
-    div.autocomplete-list {
-      background-color: rgb(50, 50, 50);
+    option {
+      padding: 4px;
+      overflow: hidden;
+      text-overflow: ellipsis;
 
-      div.autocomplete-list-item.hover, div.autocomplete-list-item.active {
-        background-color: rgb(120, 120, 120);
+      &.active {
+        background-color: var(--system-accent-color);
+        color: var(--system-accent-color-contrast);
       }
     }
   }
 }
 
-body.darwin {
-  &.dark div.autocomplete-list {
-    background-color: rgb(80, 80, 80);
-    border-color: rgb(120, 120, 120);
-
-    div.autocomplete-list-item {
-      &:hover, &.active {
-        background-color: rgb(120, 120, 120);
-      }
-    }
-  }
+body.dark div.autocomplete-element .autocomplete-list {
+  background-color: rgba(50, 50, 50, 1);
+  box-shadow: 0px 0px 5px 0px rgba(255, 255, 255, .2);;
 }
 </style>

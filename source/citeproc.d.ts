@@ -32,7 +32,7 @@ interface CSLItem {
   /**
    * Arbitrary values can be passed here as well
    */
-  [key?: string]: any
+  [key?: string]: unknown
 }
 
 /**
@@ -45,7 +45,8 @@ interface EngineCitation {
   properties: {
     /**
      * The noteIndex value indicates the footnote number in which the citation
-     * is located within the document.
+     * is located within the document. Essentially, this is a one-based (!)
+     * array index for use in `processCitationCluster()`.
      */
     noteIndex: number
   }
@@ -225,7 +226,7 @@ interface CSLKernelConfig {
    *
    * @return  {string|Object|Element|JSON|false}           The return value
    */
-  retrieveLocale: (language: string) => string|Object|Element|JSON|false
+  retrieveLocale: (language: string) => string|Record<string, unknown>|Element|JSON|false
   /**
    * The retrieveItem() function fetches citation data for an item. The
    * function takes an item ID as its sole argument, and returns a JavaScript
@@ -242,7 +243,43 @@ interface CSLKernelConfig {
 /**
  * The actual intantiated CSL kernel configuration
  */
-interface CSLKernel extends CSLKernelConfig {}
+type CSLKernel = CSLKernelConfig
+
+/**
+ * The result of processCitationCluster()
+ */
+type ProcessCitationClusterResult = [
+  /**
+   * Metadata produced by the processing.
+   */
+  metadata: {
+    bibchange: boolean,
+    citation_errors: any[]
+  },
+  /**
+   * Changed item based on the processing.
+   */
+  changedItems: Array<[
+    /**
+     * This is the zero-based index of the citation in the document based on the
+     * pre- and post-citations. If multiple items have changed (e.g., due to
+     * disambiguation), these indices can be used to accurately find those
+     * again.
+     */
+    index: number,
+    /**
+     * The rendered citation according to the CSL style
+     */
+    renderedCitation: string,
+    /**
+     * The ID assigned by the engine to this citation. This differs from the
+     * citation IDs because a single citation cluster may have several IDs. The
+     * engine will pre-sort and preprocess them, and then assign each
+     * combination of cite items an individual ID.
+     */
+    registryID: string
+  ]>
+]
 
 declare module 'citeproc' {
   export class Engine {
@@ -283,13 +320,13 @@ declare module 'citeproc' {
      * Use the processCitationCluster() method to generate and maintain
      * citations dynamically in the text of a document.
      *
-     * @param   {EngineCitation}  citation       The actual citation to generate
-     * @param   {string[]}        citationsPre   A list of citations cited prior to the citation
-     * @param   {string[]}        citationsPost  A list of citations cited after the citation
+     * @param   {EngineCitation}        citation       The actual citation to generate
+     * @param   {[ string, number ][]}  citationsPre   A list of citations cited prior to the citation
+     * @param   {[ string, number ][]}  citationsPost  A list of citations cited after the citation
      *
-     * @return  {any}                            An array of two elements: a data object, and an array of one or more index/string pairs, one for each citation affected by the citation edit or insertion operation.
+     * @return  {any}                                  An array of two elements: a data object, and an array of one or more index/string pairs, one for each citation affected by the citation edit or insertion operation.
      */
-    processCitationCluster (citation: EngineCitation, citationsPre: string[], citationsPost: string[]): any
+    processCitationCluster (citation: EngineCitation, citationsPre: [ string, number ][], citationsPost: [ string, number ][]): ProcessCitationClusterResult
     /**
      * Use previewCitationCluster() to generate accurately formatted citations
      * as they would appear at a given location within a document managed using
@@ -298,14 +335,14 @@ declare module 'citeproc' {
      * processCitationCluster(). The fourth argument may be used to control the
      * output mode.
      *
-     * @param   {EngineCitation}  citation       The actual citation to generate
-     * @param   {string[]}        citationsPre   A list of citations cited prior to the citation
-     * @param   {string[]}        citationsPost  A list of citations cited after the citation
-     * @param   {html|text|rtf}   format         Either HTML, TXT, or RTF, indicating the output format
+     * @param   {EngineCitation}        citation       The actual citation to generate
+     * @param   {[ string, number ][]}  citationsPre   A list of citations cited prior to the citation
+     * @param   {[ string, number ][]}  citationsPost  A list of citations cited after the citation
+     * @param   {html|text|rtf}         format         Either HTML, TXT, or RTF, indicating the output format
      *
-     * @return  {string}                         The rendered citation
+     * @return  {string}                               The rendered citation
      */
-    previewCitationCluster (citation: EngineCitation, citationsPre: string[], citationsPost: string[], format?: 'html'|'text'|'rtf'): string
+    previewCitationCluster (citation: EngineCitation, citationsPre: [ string, number ][], citationsPost: [ string, number ][], format?: 'html'|'text'|'rtf'): string
     /**
      * Use makeCitationCluster() to generate citations without the burden of
      * registry adjustments. The method accepts an array of cite-items as its
@@ -326,10 +363,10 @@ declare module 'citeproc' {
      * on the current state of the processor registry. It accepts on optional
      * argument.
      *
-     * @param   {any}                filter  Undocumented option
+     * @param   {unknown}                filter  Undocumented option
      *
      * @return  {[BibliographyOptions, string[]]}          The output is a two-index array
      */
-    makeBibliography (filter?: any): [BibliographyOptions, string[]]
+    makeBibliography (filter?: unknown): [BibliographyOptions, string[]]
   }
 }

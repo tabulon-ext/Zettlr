@@ -1,4 +1,3 @@
-/* eslint-disable no-var */
 /**
  * @ignore
  * BEGIN HEADER
@@ -23,8 +22,38 @@
  * These filetypes can be "imported" but their resolved value will be a string
  * pointing to wherever the file-loader has put these files.
  */
-declare module '*.png'
-declare module '*.svg'
+declare module '*.png' {
+  const filePath: string
+  export default filePath
+}
+declare module '*.svg' {
+  const filePath: string
+  export default filePath
+}
+declare module '*.mp3' {
+  const filePath: string
+  export default filePath
+}
+declare module '*.wav' {
+  const filePath: string
+  export default filePath
+}
+declare module '*.glsl' {
+  const content: string
+  export default content
+}
+declare module '*.css' {
+  const filePath: string
+  export default filePath
+}
+
+// Declare modules which don't offer types
+declare module '@joplin/turndown'
+declare module 'joplin-turndown-plugin-gfm'
+declare module '@replit/codemirror-emacs'
+declare module '@replit/codemirror-lang-nix'
+// Declare all legacy-modes plugins at once
+declare module '@codemirror/legacy-modes/*'
 
 /**
  * DECLARE ELECTRON-FORGE INSERTION VARIABLES
@@ -48,8 +77,6 @@ declare const PREFERENCES_PRELOAD_WEBPACK_ENTRY: string
 declare const PREFERENCES_WEBPACK_ENTRY: string
 declare const PRINT_PRELOAD_WEBPACK_ENTRY: string
 declare const PRINT_WEBPACK_ENTRY: string
-declare const QUICKLOOK_PRELOAD_WEBPACK_ENTRY: string
-declare const QUICKLOOK_WEBPACK_ENTRY: string
 declare const STATS_PRELOAD_WEBPACK_ENTRY: string
 declare const STATS_WEBPACK_ENTRY: string
 declare const TAG_MANAGER_PRELOAD_WEBPACK_ENTRY: string
@@ -58,139 +85,95 @@ declare const UPDATE_PRELOAD_WEBPACK_ENTRY: string
 declare const UPDATE_WEBPACK_ENTRY: string
 declare const PROJECT_PROPERTIES_PRELOAD_WEBPACK_ENTRY: string
 declare const PROJECT_PROPERTIES_WEBPACK_ENTRY: string
+declare const SPLASH_SCREEN_WEBPACK_ENTRY: string
+declare const SPLASH_SCREEN_PRELOAD_WEBPACK_ENTRY: string
+declare const ONBOARDING_WEBPACK_ENTRY: string
+declare const ONBOARDING_PRELOAD_WEBPACK_ENTRY: string
 
-/**
- * DECLARE THE GLOBAL INTERFACES
- */
-interface Application {
-  runCommand: (command: string, payload?: any) => Promise<any>
-  isQuitting: () => boolean
-  showLogViewer: () => void
-  showPreferences: () => void
-  displayErrorMessage: (title: string, message: string, contents?: string) => void
-  showAboutWindow: () => void
-  showDefaultsPreferences: () => void
-  showTagManager: () => void
-  showAnyWindow: () => void
-  findFile: (prop: any) => MDFileDescriptor | CodeFileDescriptor | null
-  findDir: (prop: any) => DirDescriptor | null
-  // Same as findFile, only with content
-  getFile: (fileDescriptor: MDFileDescriptor | CodeFileDescriptor) => Promise<MDFileMeta | CodeFileMeta>
-}
+// Contains the git build number and date
+declare const __GIT_COMMIT_HASH__: string
+declare const __BUILD_DATE__: string
+declare const __UPDATES_DISABLED__: '1'|'0'
 
-/**
- * Declare and extend the global NodeJS object to enable the globals
- * for the service providers.
- *
- * NOTE: Most service providers define these interfaces in the corresponding
- * types files in ./source/app/service-providers/assets
- */
-declare module global {
-  var assets: AssetsProvider
-  var css: CssProvider
-  var dict: DictionaryProvider
-  var log: LogProvider
-  var store: any
-  var notify: NotificationProvider
-  var ipc: any
-  var citeproc: CiteprocProvider
-  var config: ConfigProvider
-  var application: Application
-  var typo: any
-  var preBootLog: BootLog[]
-  var tippy: any
-  var updates: UpdateProvider
-  var translations: any
-  var targets: TargetProvider
-  var tags: TagProvider
-  var stats: StatsProvider
-  var recentDocs: RecentDocumentsProvider
-  // Translation data necessary to facilitate internationalisation
-  var i18n: any
-  var i18nRawData: any
-  var i18nFallback: any
-  var i18nFallbackRawData: any
-  var tray: TrayProvider
-  // This type is only required in the renderer processes since the
-  // applicationMenuHelper is shared via the browser process's window object.
-  var menuProvider: {
-    show: (position: Point | Rect, items: AnyMenuItem[], callback: (clickedID: string) => void, cleanup?: boolean) => () => void
+declare interface Window {
+  /**
+   * The config API provides methods to read and set configuration values
+   */
+  config: {
+    /**
+     * Returns the config value associated with the provided key. If key is
+     * undefined, returns the full configuration.
+     *
+     * @param   {string}  key  The key to retrieve
+     *
+     * @return  {any}          The value associated with key
+     */
+    get: (key?: string) => any
+    /**
+     * Sets the configuration value associated with key to value.
+     *
+     * @param   {string}  key    The key to set
+     * @param   {any}     value  The value to set the key to
+     */
+    set: (key: string, value: unknown) => void
   }
-}
-
-// This interface is being produced by the MarkdownEditor module in source/common
-interface DocumentInfo {
-  words: number
-  chars: number
-  chars_wo_spaces: number
-  cursor: { ch: number, line: number }
-  selections: Array<{
-    selectionLength: number
-    start: { ch: number, line: number }
-    end: { ch: number, line: number }
-  }>
-}
-
-/**
- * Declare the Vuex store used in the MainWindow
- */
-interface ZettlrState {
   /**
-   * Contains the full file tree that is loaded into the app
+   * Takes citation items and returns a rendered citation from main
+   *
+   * @param   {string}      database   The database to request from
+   * @param   {CiteItem[]}  citations  The cite items (as CSL JSON)
+   * @param   {boolean}     composite  Whether the citation is composite
+   *
+   * @return  {string|undefined}       The rendered citation, or undefined
    */
-  fileTree: Array<MDFileMeta|CodeFileMeta|DirMeta>
+  getCitationCallback: (database: string) => (citations: CiteItem[], composite: boolean) => string|undefined
+  ipc: {
+    /**
+     * Sends a message to main (fire-and-forget)
+     *
+     * @param   {string}  channel  The channel to send upon
+     * @param   {any[]}   args     Arguments to provide
+     *
+     */
+    send: (channel: string, ...args: any[]) => void
+    /**
+     * Sends a synchronous message and returns the response immediately.
+     *
+     * @param   {string}  event  The channel to send upon
+     * @param   {any[]}   args   Arguments for that call
+     *
+     * @return  {any}             Whichever this call returns from main
+     */
+    sendSync: (event: string, ...args: any[]) => any
+    /**
+     * Sens a message to main and returns a promise which fulfills with the
+     * response from main.
+     *
+     * @param   {string}        channel  The channel to send upon
+     * @param   {any[]}         args     Arguments for that call
+     *
+     * @return  {Promise<any>}           Whichever this call returns from main
+     */
+    invoke: (channel: string, ...args: any[]) => Promise<any>
+    /**
+     * Listens to broadcasted messages from main
+     *
+     * @param   {string}     channel   The channel on which to listen
+     * @param   {undefined}  listener  An event. This will always be omitted and undefined.
+     * @param   {any}        args      Any payload that was sent from main
+     *
+     * @return {Function}  A function to stop listening (remove the listener)
+     */
+    on: (channel: string, listener: (event: undefined, ...args: any) => void) => () => void
+  }
   /**
-   * Contains the last update timestamp from main
+   * Returns the absolute path to the file on disk which this File object is
+   * representing. Returns undefined if there was either an error or the File
+   * object does not represent a file on disk.
+   *
+   * @param   {File}              file  The web File object
+   *
+   * @return  {string|undefined}        The absolute path, or undefined.
    */
-  lastFiletreeUpdate: number
-  /**
-   * Contains the currently selected directory
-   */
-  selectedDirectory: any|null
-  /**
-   * Contains the currently active File in the editor
-   */
-  activeFile: any|null
-  /**
-   * Contains all open files in the editor
-   */
-  openFiles: any[]
-  /**
-   * Contains coloured tags that can be managed in the tag manager
-   */
-  colouredTags: any[]
-  /**
-   * Contains all tags across all files loaded into Zettlr
-   */
-  tagDatabase: any[]
-  /**
-   * Contains a list of suggested tags for the current active file.
-   */
-  tagSuggestions: string[]
-  /**
-   * Holds all configuration options. These need to be stored here separately
-   * to make use of the reactivity of Vue. We'll basically be binding the config
-   * listener to this store state. It's basically a dictionary for quick access.
-   */
-  config: any
-  /**
-   * Info about the currently active document
-   */
-  activeDocumentInfo: DocumentInfo|null
-  /**
-   * Modified files are stored here (only the paths, though)
-   */
-  modifiedDocuments: string[]
-  /**
-   * Contains the current table of contents of the active document
-   */
-  tableOfContents: any|null
-  /**
-   * Citation keys to be found within the current document
-   */
-  citationKeys: string[]
-  /**
-   * All CSL items available in the currently loaded database
-   */
-  cslItems: any[]
+  getPathForFile: (file: File) => string|undefined
 }

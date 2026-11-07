@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <PopoverWrapper v-bind:target="target" v-on:close="$emit('close')">
     <template v-if="isRunning">
       <!-- Display running time -->
       <p class="pomodoro-big">
@@ -9,35 +9,37 @@
         {{ currentPhaseLabel }}
       </p>
       <hr>
-      <button v-on:click="stopPomodoro">
-        {{ stopLabel }}
-      </button>
+      <div class="pomodoro-button">
+        <button v-on:click="stopPomodoro">
+          {{ stopLabel }}
+        </button>
+      </div>
     </template>
     <template v-else>
       <!-- Display set up -->
       <NumberControl
-        v-model="taskDuration"
+        v-model="internalTaskDuration"
         v-bind:label="taskLabel"
         v-bind:min="1"
         v-bind:max="120"
       ></NumberControl>
       <NumberControl
-        v-model="shortDuration"
+        v-model="internalShortDuration"
         v-bind:label="shortLabel"
         v-bind:min="1"
         v-bind:max="120"
       ></NumberControl>
       <NumberControl
-        v-model="longDuration"
+        v-model="internalLongDuration"
         v-bind:label="longLabel"
         v-bind:min="1"
         v-bind:max="120"
       ></NumberControl>
       <hr>
       <SelectControl
-        v-model="effect"
-        v-bind:label="'Sound Effect'"
-        v-bind:options="soundEffects"
+        v-model="internalEffect"
+        v-bind:label="soundEffectsLabel"
+        v-bind:options="optionizedEffects"
       ></SelectControl>
       <!--
         NOTE: In below's component we are not using model, since we only want to
@@ -46,21 +48,22 @@
         custom elements yet. See: https://github.com/vuejs/vue/issues/6914
       -->
       <SliderControl
-        v-bind:model-value="volume"
-        v-bind:label="'Volume'"
+        v-model="internalVolume"
+        v-bind:label="volumeLabel"
         v-bind:min="0"
         v-bind:max="100"
-        v-on:change="volume = $event"
       ></SliderControl>
       <hr>
-      <button v-on:click="startPomodoro">
-        {{ startLabel }}
-      </button>
+      <div class="pomodoro-button">
+        <button v-on:click="startPomodoro">
+          {{ startLabel }}
+        </button>
+      </div>
     </template>
-  </div>
+  </PopoverWrapper>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -75,94 +78,100 @@
  * END HEADER
  */
 
-import NumberControl from '../common/vue/form/elements/Number'
-import SelectControl from '../common/vue/form/elements/Select'
-import SliderControl from '../common/vue/form/elements/Slider'
-import { trans } from '../common/i18n-renderer'
+import NumberControl from '@common/vue/form/elements/NumberControl.vue'
+import SelectControl from '@common/vue/form/elements/SelectControl.vue'
+import SliderControl from '@common/vue/form/elements/SliderControl.vue'
+import PopoverWrapper from '@common/vue/PopoverWrapper.vue'
+import { trans } from '@common/i18n-renderer'
+import { ref, computed, watch } from 'vue'
+import type { PomodoroConfig } from './App.vue'
 
-export default {
-  name: 'PopoverExport',
-  components: {
-    NumberControl,
-    SelectControl,
-    SliderControl
-  },
-  data: function () {
-    return {
-      taskDuration: 1500 / 60,
-      shortDuration: 300 / 60,
-      longDuration: 1200 / 60,
-      currentPhase: 'task',
-      elapsed: 0,
-      isRunning: false,
-      soundEffects: {},
-      effect: '',
-      volume: 100
-    }
-  },
-  computed: {
-    popoverData: function () {
-      return {
-        taskDuration: this.taskDuration * 60,
-        shortDuration: this.shortDuration * 60,
-        longDuration: this.longDuration * 60,
-        isRunning: this.isRunning,
-        effect: this.effect,
-        volume: this.volume / 100
-      }
-    },
-    remainingTimeFormatted: function () {
-      let timeRemaining = this.elapsed
-      switch (this.currentPhase) {
-        case 'task':
-          timeRemaining = this.taskDuration * 60 - this.elapsed
-          break
-        case 'short':
-          timeRemaining = this.shortDuration * 60 - this.elapsed
-          break
-        case 'long':
-          timeRemaining = this.longDuration * 60 - this.elapsed
-      }
+const startLabel = trans('Start')
+const stopLabel = trans('Stop')
+const taskLabel = trans('Work')
+const shortLabel = trans('Short break')
+const longLabel = trans('Break')
+const soundEffectsLabel = trans('Sound Effect')
+const volumeLabel = trans('Volume')
 
-      const minutes = Math.floor(timeRemaining / 60)
-      const seconds = timeRemaining % 60
-      const minStr = (minutes < 10) ? `0${minutes}` : String(minutes)
-      const secStr = (seconds < 10) ? `0${seconds}` : String(seconds)
-      return `${minStr}:${secStr}`
-    },
-    startLabel: function () {
-      return trans('pomodoro.start')
-    },
-    stopLabel: function () {
-      return trans('pomodoro.stop')
-    },
-    taskLabel: function () {
-      return trans('pomodoro.phase.task')
-    },
-    shortLabel: function () {
-      return trans('pomodoro.phase.short')
-    },
-    longLabel: function () {
-      return trans('pomodoro.phase.long')
-    },
-    currentPhaseLabel: function () {
-      if (this.currentPhase === 'task') {
-        return this.taskLabel
-      } else if (this.currentPhase === 'long') {
-        return this.longLabel
-      } else {
-        return this.shortLabel
-      }
-    }
-  },
-  methods: {
-    startPomodoro: function () {
-      this.isRunning = true
-    },
-    stopPomodoro: function () {
-      this.isRunning = false
-    }
+const props = defineProps<{
+  target: HTMLElement
+  pomodoro: PomodoroConfig
+  soundEffects: Array<{ label: string, file: string }>
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'start'): void
+  (e: 'stop'): void
+  (e: 'config', value: PomodoroConfig): void
+}>()
+
+const internalVolume = ref(props.pomodoro.soundEffect.volume * 100)
+const internalEffect = ref(props.pomodoro.currentEffectFile)
+const internalShortDuration = ref(props.pomodoro.durations.short / 60)
+const internalTaskDuration = ref(props.pomodoro.durations.task / 60)
+const internalLongDuration = ref(props.pomodoro.durations.long / 60)
+
+const optionizedEffects = computed(() => {
+  const opt: Record<string, string> = {}
+  for (const effect of props.soundEffects) {
+    opt[effect.file] = effect.label
   }
+  return opt
+})
+
+const isRunning = computed(() => props.pomodoro.intervalHandle !== undefined)
+
+const remainingTimeFormatted = computed(() => {
+  const currentDuration = props.pomodoro.durations[props.pomodoro.phase.type]
+  const timeRemaining = currentDuration - props.pomodoro.phase.elapsed
+  const minutes = Math.floor(timeRemaining / 60)
+  const seconds = timeRemaining % 60
+  const minStr = (minutes < 10) ? `0${minutes}` : String(minutes)
+  const secStr = (seconds < 10) ? `0${seconds}` : String(seconds)
+  return `${minStr}:${secStr}`
+})
+
+const currentPhaseLabel = computed(() => {
+  if (props.pomodoro.phase.type === 'task') {
+    return taskLabel
+  } else if (props.pomodoro.phase.type === 'long') {
+    return longLabel
+  } else {
+    return shortLabel
+  }
+})
+
+watch(internalTaskDuration, updateConfig)
+watch(internalShortDuration, updateConfig)
+watch(internalLongDuration, updateConfig)
+watch(internalVolume, updateConfig)
+watch(internalEffect, updateConfig)
+
+function updateConfig (): void {
+  const effect = new Audio()
+  effect.src = internalEffect.value
+  effect.volume = internalVolume.value / 100
+  const newConfig = {
+    ...props.pomodoro,
+    durations: {
+      task: internalTaskDuration.value * 60,
+      short: internalShortDuration.value * 60,
+      long: internalLongDuration.value * 60
+    },
+    soundEffect: effect,
+    currentEffectFile: internalEffect.value
+  }
+  emit('config', newConfig)
+}
+
+function startPomodoro (): void {
+  emit('start')
+}
+
+function stopPomodoro (): void {
+  emit('stop')
 }
 </script>
 
@@ -172,4 +181,26 @@ p.pomodoro-big {
   text-align: center;
   margin: 10px;
 }
+
+.pomodoro-button {
+  display: flex;
+  justify-content: center;
+
+  button {
+    width: stretch;
+  }
+}
+
+.slider-group input {
+  margin-bottom: 5px
+}
+
+.form-control {
+  padding: 5px;
+
+  input, select {
+      margin-top: 5px;
+    }
+}
+
 </style>

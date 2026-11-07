@@ -5,10 +5,15 @@
 # because this gives us more control over the built-in pandoc binary.
 
 # Retrieve the versions from https://github.com/jgm/pandoc/releases/latest
-PANDOC_LINUX_X64="https://github.com/jgm/pandoc/releases/download/2.16.2/pandoc-2.16.2-linux-amd64.tar.gz"
-PANDOC_LINUX_ARM="https://github.com/jgm/pandoc/releases/download/2.16.2/pandoc-2.16.2-linux-arm64.tar.gz"
-PANDOC_WIN32_X64="https://github.com/jgm/pandoc/releases/download/2.16.2/pandoc-2.16.2-windows-x86_64.zip"
-PANDOC_MACOS_X64="https://github.com/jgm/pandoc/releases/download/2.16.2/pandoc-2.16.2-macOS.zip"
+VERSION="3.12.1"
+
+BASE_PATH="https://github.com/jgm/pandoc/releases/download/$VERSION"
+
+PANDOC_LINUX_X64="$BASE_PATH/pandoc-$VERSION-linux-amd64.tar.gz"
+PANDOC_LINUX_ARM="$BASE_PATH/pandoc-$VERSION-linux-arm64.tar.gz"
+PANDOC_WIN32_X64="$BASE_PATH/pandoc-$VERSION-windows-x86_64.zip"
+PANDOC_MACOS_X64="$BASE_PATH/pandoc-$VERSION-x86_64-macOS.zip"
+PANDOC_MACOS_ARM="$BASE_PATH/pandoc-$VERSION-arm64-macOS.zip"
 
 # Prepare our global variables
 PLATFORM="$1"
@@ -59,11 +64,7 @@ fi
 
 if [ "$PLATFORM" == "darwin" ] && [ "$ARCH" == "arm" ]
 then
-    # There's no ARM Pandoc. However, x64 Pandoc binaries work well on macOS ARM
-    # due to the existence of Rosetta. So we can safely take that one.
-    echo "Currently there is no ARM-release for macOS. Falling back to x64 ..."
-    ARCH="x64" # In case we're at some point referring to ARCH again.
-    RELEASE="$PANDOC_MACOS_X64"
+    RELEASE="$PANDOC_MACOS_ARM"
 elif [ "$PLATFORM" == "darwin" ] && [ "$ARCH" == "x64" ]
 then
     RELEASE="$PANDOC_MACOS_X64"
@@ -79,7 +80,7 @@ then
     exit
 elif [ "$PLATFORM" == "win32" ] && [ "$ARCH" == "x64" ]
 then
-  RELEASE="$PANDOC_WIN32_X64"
+    RELEASE="$PANDOC_WIN32_X64"
 fi
 
 # First, cd into the resources directory
@@ -119,8 +120,14 @@ then
 elif [ "$PLATFORM" == "win32" ]
 then
     # Windows builds are a zip file where the binary is in .
-    unzip -qq $BASENAME # -qq makes unzip quiet
-    EXTRACTEDFOLDER="$(unzip -Z -1 $BASENAME | head -1)"
+    EXTRACTEDFOLDER="pandoc-$VERSION"
+    # Unzip the archive. -qq makes unzip quiet, and -d specifies a custom output
+    # directory. The -j flag instructs unzip not to recreate the folder
+    # structure. The reason is that `unzip -Z -1 $BASENAME | head -1`` will no
+    # longer give us the root folder of the archive. (This was updated on March
+    # 7, 2026, since we had a failing nightly build on Monday, March 2, after
+    # having upgraded to Pandoc 3.9.)
+    unzip -qq -d $EXTRACTEDFOLDER -j $BASENAME
     echo "Extracted to: $EXTRACTEDFOLDER"
     cd $EXTRACTEDFOLDER
     echo "Moving binary from ./ to resources directory ..."

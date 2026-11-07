@@ -13,30 +13,25 @@
  */
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
 
-import windowRegister from '../common/modules/window-register'
+import windowRegister from '@common/modules/window-register'
 
-const ipcRenderer = (window as any).ipc as Electron.IpcRenderer
+const ipcRenderer = window.ipc
 
 // Register all window stuff
 windowRegister()
+  .then(() => {
+    // This window will be closed immediately on a window-close command
+    ipcRenderer.on('shortcut', (event, shortcut) => {
+      if (shortcut === 'close-window') {
+        ipcRenderer.send('window-controls', { command: 'win-close' })
+      }
+    })
 
-// This window will be closed immediately on a window-close command
-ipcRenderer.on('shortcut', (event, shortcut) => {
-  if (shortcut === 'close-window') {
-    ipcRenderer.send('window-controls', { command: 'win-close' })
-  }
-})
-
-const app = createApp(App).mount('#app')
-
-// Finally, pass the correct directory
-const searchParams = new URLSearchParams(window.location.search)
-const dirPath = searchParams.get('directory')
-
-if (dirPath === null) {
-  console.error('Could not load properties, since the passed directory was null!')
-} else {
-  app.$data.dirPath = dirPath
-}
+    const pinia = createPinia()
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    createApp(App).use(pinia).mount('#app')
+  })
+  .catch(e => console.error(e))

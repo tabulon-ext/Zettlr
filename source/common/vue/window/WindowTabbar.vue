@@ -1,9 +1,8 @@
 <template>
   <div
-    class="tab-list"
+    v-bind:class="{ 'tab-list': true, 'has-vibrancy': props.hasVibrancy }"
     role="tablist"
     v-bind:aria-label="label"
-    v-bind:style="{ top: marginTop }"
   >
     <button
       v-for="(tab, idx) in tabs"
@@ -12,22 +11,29 @@
       role="tab"
       v-bind:aria-selected="currentTab === idx" v-bind:aria-controls="tab.controls"
       v-bind:class="{ 'active': currentTab === idx }"
-      v-on:click="currentTab = idx"
+      v-on:click="onTabClick($event, tab.id)"
     >
       <div class="toolbar-icon">
-        <clr-icon
+        <cds-icon
           v-if="tab.icon"
           v-bind:shape="tab.icon"
-          size="24"
+          style="width: 24px; height: 24px;"
         >
-        </clr-icon>
+        </cds-icon>
       </div>
-      {{ tab.label }}
+      <!--
+        Below's if-statement makes sure that on Windows, where the tabs are
+        rather wide, we only display the labels when the overall window width
+        is greater than at least 80px per tab
+      -->
+      <template v-if="currentWindowWidth > 80 * tabs.length || platform !== 'win32'">
+        {{ tab.label }}
+      </template>
     </button>
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -44,41 +50,89 @@
  * END HEADER
  */
 
-export default {
-  name: 'WindowTabbar',
-  props: {
-    marginTop: {
-      type: String,
-      default: '0px'
-    },
-    tabs: {
-      type: Array,
-      default: function () { return [] }
-    },
-    label: {
-      type: String,
-      default: 'tabs'
-    }
-  },
-  emits: ['tab'],
-  data: function () {
-    return {
-      currentTab: 0
-    }
-  },
-  watch: {
-    currentTab: function () {
-      this.$emit('tab', this.currentTab)
-    }
+import { ref, onBeforeMount, onBeforeUnmount, watch } from 'vue'
+
+export interface WindowTab {
+  icon: string
+  id: string
+  controls: string
+  label: string
+}
+
+/**
+ * This interface represents a Tabbar control
+ */
+export interface TabbarControl {
+  /**
+   * This should match a Clarity icon shape
+   */
+  icon: string
+  /**
+   * A unique ID for the tab
+   */
+  id: string
+  /**
+   * The target ID of whichever tab this represents (for a11y purposes)
+   */
+  target: string
+  /**
+   * A label, may be displayed.
+   */
+  label: string
+}
+
+const props = defineProps<{
+  tabs: WindowTab[],
+  hasVibrancy: boolean,
+  label?: string
+}>()
+
+const emit = defineEmits<(e: 'tab', value: number) => void>()
+
+const currentTab = ref<number>(0)
+// The following are required to hide tab labels on win32 w/ narrow windows
+const currentWindowWidth = ref<number>(window.innerWidth)
+const platform = ref<typeof process.platform>(process.platform)
+
+watch(currentTab, () => {
+  emit('tab', currentTab.value)
+})
+
+onBeforeMount(() => {
+  window.addEventListener('resize', onWindowResize)
+  // On mount, if the URL contains a fragment that matches a tab ID, emit an
+  // event to ensure the app actually switches to that.
+  const fragment = location.hash
+  if (fragment === '') {
+    return
   }
+
+  const tabId = fragment.substring(1)
+  const idx = props.tabs.findIndex(tab => tab.id === tabId)
+  if (idx > -1) {
+    currentTab.value = idx
+  }
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', onWindowResize)
+})
+
+function onTabClick (event: MouseEvent, id: string): void {
+  // Modify history to retain active tab across reloads
+  const idx = props.tabs.findIndex(tab => tab.id === id)
+  location.hash = '#' + id
+  currentTab.value = idx
+}
+
+function onWindowResize (_event: UIEvent): void {
+  currentWindowWidth.value = window.innerWidth
 }
 </script>
 
 <style lang="less">
 // General styles
 body div.tab-list {
-  position: absolute;
-  width: 100%;
   font-family: inherit;
   display: flex;
   padding: 5px;
@@ -109,6 +163,10 @@ body.darwin {
     background-color: rgb(240, 240, 240);
     border-bottom: 1px solid rgb(150, 150, 150);
 
+    &.has-vibrancy {
+      background-color: rgba(240, 240, 240, 0.5);
+    }
+
     button[role="tab"] {
       color: var(--grey-4);
       background-color: transparent;
@@ -136,6 +194,10 @@ body.darwin {
       background-color: rgb(52, 52, 52);
       color: rgb(153, 153, 153);
       border-bottom: 1px solid rgb(0, 0, 0);
+
+      &.has-vibrancy {
+        background-color: rgba(52, 52, 52, 0.3);
+      }
 
       button[role="tab"] {
         color: rgb(172, 172, 172);

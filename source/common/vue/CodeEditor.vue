@@ -1,8 +1,10 @@
 <template>
-  <textarea ref="editor"></textarea>
+  <div class="code-editor-wrapper">
+    <div v-bind:id="wrapperId"></div>
+  </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -19,18 +21,34 @@
  * END HEADER
  */
 
-import CodeMirror from 'codemirror'
-import 'codemirror/addon/edit/closebrackets'
+// import { trans } from '@common/i18n-renderer'
 
-import 'codemirror/lib/codemirror.css'
-import 'codemirror/mode/css/css'
-import 'codemirror/mode/yaml/yaml'
-import 'codemirror/mode/gfm/gfm'
-import 'codemirror/addon/mode/overlay'
+import { drawSelection, dropCursor, EditorView, lineNumbers } from '@codemirror/view'
+import { onMounted, ref, toRef, watch } from 'vue'
+import { autocompletion, closeBrackets } from '@codemirror/autocomplete'
+import { bracketMatching, codeFolding, foldGutter, indentOnInput, indentUnit, StreamLanguage } from '@codemirror/language'
+import { codeSyntaxHighlighter, markdownSyntaxHighlighter } from '@common/modules/markdown-editor/theme/syntax'
+import { yaml } from '@codemirror/lang-yaml'
+import { lua } from '@codemirror/legacy-modes/mode/lua'
+import { EditorState, type Extension } from '@codemirror/state'
+import { css } from '@codemirror/lang-css'
+import markdownParser from '@common/modules/markdown-editor/parser/markdown-parser'
+import { yamlLint } from '@common/modules/markdown-editor/linters/yaml-lint'
+import { lintGutter } from '@codemirror/lint'
+import { showStatusbarEffect, statusbar } from '@common/modules/markdown-editor/statusbar'
+import { search } from '@codemirror/search'
+import { history } from '@codemirror/commands'
+import { snippetSyntaxExtension } from '@common/modules/markdown-utils/snippets-syntax-extension'
+import { plainLinkHighlighter } from '@common/modules/markdown-utils/plain-link-highlighter'
+import { useConfigStore } from 'source/pinia'
+import { darkMode, darkModeEffect } from '../modules/markdown-editor/theme/dark-mode'
+import { highlightWhitespace, highlightWhitespaceEffect } from '../modules/markdown-editor/plugins/highlight-whitespace'
+import { zettlrKeymap } from '../modules/markdown-editor/keymaps'
+import { type CustomEditorShortcut } from '../modules/markdown-editor/keymaps/shortcuts'
 
-import { trans } from '../i18n-renderer'
+const configStore = useConfigStore()
 
-import { defineComponent } from 'vue'
+type SupportedLanguage = 'css'|'yaml'|'lua'|'markdown-snippets'
 
 /**
  * We have to define the CodeMirror instance outside of Vue, since the Proxy-
@@ -39,257 +57,152 @@ import { defineComponent } from 'vue'
  *
  * @var {CodeMirror.Editor}
  */
-let cmInstance: CodeMirror.Editor|null = null
+const cmInstance = new EditorView()
 
-/**
- * Define a snippets mode that extends the GFM mode with TextMate syntax.
- *
- * @param  {Object}       config     The original mode config
- * @param  {Object}       parsercfg  The parser config
- *
- * @return {OverlayMode}             The generated overlay mode
- */
-CodeMirror.defineMode('markdown-snippets', function (config, parsercfg) {
-  // Create the overlay and such
-  // Only matches simple $0 or $14 tabstops
-  const tabstopRE = /\$\d+/
-  // Matches tabstops with defaults
-  const placeholderRE = /\$\{\d+:.+?\}/
-  // Matches only valid variables
-  const onlyVarRE = /\$([A-Z_]+)/
-  // Matches only valid variables plus their placeholder
-  const variableRE = /\$\{([A-Z_]+):.+?\}/
+// TODO: This could break if we ever have more than one code editor on the same page
+const wrapperId = ref<string>('code-editor')
 
-  // NOTE: This array corresponds to whatever is defined in autocomplete.js
-  const SUPPORTED_VARIABLES = [
-    'CURRENT_YEAR',
-    'CURRENT_YEAR_SHORT',
-    'CURRENT_MONTH',
-    'CURRENT_MONTH_NAME',
-    'CURRENT_MONTH_NAME_SHORT',
-    'CURRENT_DATE',
-    'CURRENT_HOUR',
-    'CURRENT_MINUTE',
-    'CURRENT_SECOND',
-    'CURRENT_SECONDS_UNIX',
-    'UUID',
-    'CLIPBOARD',
-    'ZKN_ID'
+const cleanFlag = ref<boolean>(true)
+
+function getExtensions (mode: SupportedLanguage): Extension[] {
+  const { editor, shortcuts } = configStore.config
+
+  const shortcutList = Object.entries(shortcuts.editor)
+    .map(([ name, shortcut ]) => ({ name, shortcut }))
+    .filter((shortcut): shortcut is CustomEditorShortcut => shortcut.shortcut !== undefined)
+
+  let numSpaces = editor.indentUnit
+  let useTabs = editor.indentWithTabs
+
+  if (mode === 'yaml') {
+    useTabs = false
+  }
+
+  const extensions = [
+    zettlrKeymap(shortcutList, editor),
+    search({ top: true }),
+    codeFolding(),
+    foldGutter(),
+    history(),
+    highlightWhitespace(editor.showWhitespace),
+    drawSelection({ drawRangeCursor: false, cursorBlinkRate: 1000 }),
+    dropCursor(),
+    statusbar,
+    EditorState.allowMultipleSelections.of(true),
+    EditorState.tabSize.of(numSpaces),
+    indentUnit.of(useTabs ? '\t' : ' '.repeat(numSpaces)),
+    // Ensure the cursor never completely sticks to the top or bottom of the editor
+    EditorView.scrollMargins.of(_view => { return { top: 30, bottom: 30 } }),
+    lintGutter(),
+    lineNumbers(),
+    closeBrackets(),
+    bracketMatching(),
+    indentOnInput(),
+    autocompletion(),
+    codeSyntaxHighlighter(), // This comes from the main editor component
+    darkMode({ darkMode: configStore.config.darkMode }),
+    plainLinkHighlighter,
+    EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        // Tell the main component that the contents have changed
+        cleanFlag.value = false
+        emit('update:modelValue', cmInstance.state.doc.toString())
+      }
+    })
   ]
 
-  const markdownSnippets = {
-    token: function (stream: CodeMirror.StringStream) {
-      if (stream.match(tabstopRE) !== null) {
-        return 'tm-tabstop'
-      }
-
-      if (stream.match(placeholderRE) !== null) {
-        return 'tm-placeholder'
-      }
-
-      if (stream.match(onlyVarRE, false) !== null) {
-        const variable = stream.match(onlyVarRE)[1]
-        if (SUPPORTED_VARIABLES.includes(variable)) {
-          return 'tm-variable'
-        } else {
-          return 'tm-false-variable'
-        }
-      }
-
-      if (stream.match(variableRE, false) !== null) {
-        const variable = stream.match(variableRE)[1]
-        if (SUPPORTED_VARIABLES.includes(variable)) {
-          return 'tm-variable-placeholder'
-        } else {
-          return 'tm-false-variable'
-        }
-      }
-
-      // We didn't match anything, so try again next time.
-      stream.next()
-      return null
-    }
+  switch (mode) {
+    case 'yaml':
+      return [
+        ...extensions,
+        yaml(),
+        yamlLint
+      ]
+    case 'css':
+      return [
+        ...extensions,
+        css(),
+      ]
+    case 'markdown-snippets':
+      return [
+        ...extensions,
+        snippetSyntaxExtension,
+        markdownParser({
+          // NOTE: This is not reactive to configuration changes while the code
+          // editor is on, but I can't imagine too many people making use of the
+          // linkFormat explicitly, or changing it that often (they shouldn't,
+          // after all). Should we ever need to add more configs, I can still
+          // react to changes in the parser config.
+          zknLinkParserConfig: { format: configStore.config.zkn.linkFormat }
+        }), // Comes from the main editor
+        markdownSyntaxHighlighter() // Comes from the main editor
+      ]
+    case 'lua':
+      return [
+        ...extensions,
+        StreamLanguage.define(lua)
+      ]
   }
+}
 
-  const mode = CodeMirror.getMode(config, {
-    name: 'gfm',
-    highlightFormatting: true,
-    gitHubSpice: false
+function setContents (contents: string, mode: SupportedLanguage): void {
+  const state = EditorState.create({
+    doc: contents,
+    extensions: getExtensions(mode)
   })
-  return CodeMirror.overlayMode(mode, markdownSnippets, true)
-})
 
-/**
- * Small drop-in plugin that assigns 'cm-link'-classes to everything that looks
- * like a link. Those links must have a protocol and only contain alphanumerics,
- * plus ., -, #, %, and /.
- *
- * @param   {CodeMirror.Editor}  cm  The CodeMirror instance
- */
-function markLinks (cm: CodeMirror.Editor) {
-  // Very small drop in that marks URLs inside the code editor
-  for (let i = 0; i < cm.lineCount(); i++) {
-    const line = String(cm.getLine(i))
-    // Can contain a-z0-9, ., -, /, %, and #, but must end
-    // with an alphanumeric, a slash or a hashtag.
-    const match = /[a-z0-9-]+:\/\/[a-z0-9.-/#%]+[a-z0-9/#]/i.exec(line)
-    if (match === null) {
-      continue
-    }
-
-    const from = { line: i, ch: match.index }
-    const to = { line: i, ch: match.index + match[0].length }
-
-    // We can only have one marker at any given position at any given time
-    if (cm.findMarks(from, to).length > 0) {
-      continue
-    }
-
-    cm.markText(
-      from, to,
-      {
-        className: 'cm-link',
-        inclusiveLeft: false,
-        inclusiveRight: true,
-        attributes: { title: trans('gui.ctrl_click_to_open', match[0]) }
-      }
-    )
-  }
+  cmInstance.setState(state)
+  // Immediately show the statusbar
+  cmInstance.dispatch({ effects: showStatusbarEffect.of(true) })
 }
 
-/**
- * If applicable, follows a link from the editor.
- *
- * @param   {MouseEvent}  event  The triggering MouseEvent
- */
-function maybeOpenLink (event: MouseEvent) {
-  const t = event.target
-  const cmd = process.platform === 'darwin' && event.metaKey
-  const ctrl = process.platform !== 'darwin' && event.ctrlKey
-
-  if (cmd === false && ctrl === false) {
-    return
-  }
-
-  if (t === null || !(t instanceof Element)) {
-    return
-  }
-
-  if (t.className.includes('cm-link') === true && t.textContent !== null) {
-    window.location.assign(t.textContent)
-  }
+interface Props {
+  modelValue: string
+  mode: SupportedLanguage
+  readonly?: boolean
 }
 
-export default defineComponent({
-  name: 'CodeEditor',
-  props: {
-    modelValue: {
-      type: String,
-      default: ''
-    },
-    mode: {
-      type: String,
-      default: 'css'
-    },
-    readonly: {
-      type: Boolean,
-      default: false
-    }
-  },
-  emits: ['update:modelValue'],
-  data: function () {
-    return {
-      cmInstance: null
-    }
-  },
-  watch: {
-    modelValue: function () {
-      if (cmInstance !== null) {
-        const cur = Object.assign({}, cmInstance.getCursor())
-        cmInstance.setValue(this.modelValue)
-        cmInstance.setCursor(cur)
-      }
-    },
-    readonly: function () {
-      if (cmInstance === null) {
-        return
-      }
+const props = defineProps<Props>()
 
-      if (this.readonly === true) {
-        cmInstance.setOption('readOnly', 'nocursor')
-      } else {
-        cmInstance.setOption('readOnly', false)
-      }
-    }
-  },
-  mounted: function () {
-    cmInstance = CodeMirror.fromTextArea(this.$refs['editor'] as HTMLTextAreaElement, {
-      lineNumbers: true,
-      theme: 'code-editor',
-      mode: this.mode,
-      cursorScrollMargin: 20,
-      lineWrapping: true,
-      autoCloseBrackets: true,
-      readOnly: (this.readonly === true) ? 'nocursor' : false,
-      extraKeys: {
-        // Even though indentWithTabs is false, without remapping Tab to
-        // indentation, it would insert a Tab rather than spaces. So we have
-        // to rebind it here.
-        Tab: (cm) => cm.execCommand('indentMore')
-      }
-    })
+const emit = defineEmits<(e: 'update:modelValue', newContents: string) => void>()
 
-    cmInstance.setValue(this.modelValue)
+// Switch the darkMode variable in the editor based on the config
+configStore.$subscribe((_mutation, state) => {
+  cmInstance.dispatch({
+    effects: [
+      darkModeEffect.of({ darkMode: state.config.darkMode }),
+      highlightWhitespaceEffect.of(state.config.editor.showWhitespace)
+    ]
+  })
+})
 
-    cmInstance.on('change', (event, changeObj) => {
-      if (cmInstance === null) {
-        return
-      }
-
-      this.$emit('update:modelValue', cmInstance.getValue())
-    })
-
-    // Detect links inside the source code and listen for clicks on these.
-    cmInstance.on('cursorActivity', markLinks)
-    cmInstance.getWrapperElement().addEventListener('mousedown', maybeOpenLink)
-  },
-  beforeUnmount: function () {
-    if (cmInstance === null) {
-      return
-    }
-
-    const cmWrapper = cmInstance.getWrapperElement()
-    if (cmWrapper.parentNode === null) {
-      return
-    }
-
-    // "Remove this from your tree to delete an editor instance."
-    cmWrapper.parentNode.removeChild(cmWrapper)
-  },
-  methods: {
-    setValue: function (newContents: string) {
-      if (cmInstance === null) {
-        return
-      }
-
-      cmInstance.setValue(newContents)
-    },
-    isClean: function () {
-      if (cmInstance === null) {
-        return true
-      }
-
-      return cmInstance.isClean()
-    },
-    markClean: function () {
-      if (cmInstance === null) {
-        return
-      }
-
-      cmInstance.markClean()
-    }
+watch(toRef(props, 'modelValue'), () => {
+  // Assign new contents, but only if not the same as the current contents
+  if (cmInstance.state.doc.toString() !== props.modelValue) {
+    setContents(props.modelValue, props.mode)
   }
 })
+
+onMounted(() => {
+  const wrapper = document.getElementById(wrapperId.value)
+
+  if (wrapper !== null) {
+    wrapper.replaceWith(cmInstance.dom)
+  }
+
+  setContents(props.modelValue, props.mode)
+})
+
+// Utility functions for those accessing this module
+function isClean (): boolean {
+  return cleanFlag.value
+}
+
+function markClean (): void {
+  cleanFlag.value = true
+}
+
+defineExpose({ markClean, isClean })
 </script>
 
 <style lang="less">
@@ -312,57 +225,94 @@ export default defineComponent({
 @green:     #859900;
 
 body {
-  .CodeMirror.cm-s-code-editor {
+  .code-editor-wrapper {
+    overflow: auto;
+    height: 100%;
     margin: 20px 0px;
     background-color: white;
     border: 1px solid rgb(173, 173, 173);
-    color: @base01;
-    .cm-string     { color: @green; }
-    .cm-string-2   { color: @green; }
-    .cm-keyword    { color: @green; }
-    .cm-atom       { color: @green; }
-    .cm-tag        { color: @blue; }
-    .cm-qualifier  { color: @blue; }
-    .cm-builtin    { color: @blue; }
-    .cm-variable-2 { color: @yellow; }
-    .cm-variable   { color: @yellow; }
-    .cm-comment    { color: @base1; }
-    .cm-attribute  { color: @orange; }
-    .cm-property   { color: @magenta; }
-    .cm-type       { color: @red; }
-    .cm-number     { color: @violet; }
-    .CodeMirror-gutters { background-color: @base1; }
-    .CodeMirror-linenumber { color: @base00; }
+  }
 
-    // Additional styles only for the GFM snippets editor
-    .cm-tm-tabstop { color: @cyan; }
-    .cm-tm-placeholder { color: @cyan; }
-    .cm-tm-variable { color: @yellow; }
-    .cm-tm-variable-placeholder { color: @violet; }
-    .cm-tm-false-variable { color: @red; }
+  .cm-editor.cm-focused {
+    outline: none !important;
+  }
+
+  .cm-editor {
+    .cm-scroller { overflow: auto; }
+    .cm-content { cursor: text; }
+    height: 100%;
+
+    // margin: 20px 0px;
+    // background-color: white;
+    // border: 1px solid rgb(173, 173, 173);
+    color: @base00;
+    .cm-separator         { color: @base00; }
+    .cm-punctuation       { color: @base00; }
+
+    .cm-content-span      { color: @base0; }
+    .cm-brace             { color: @base0; }
+    .cm-square-bracket    { color: @base0; }
+
+    .cm-comment           { color: @base1; }
+    .cm-line-comment      { color: @base1; }
+    .cm-block-comment     { color: @base1; }
+    .cm-unit              { color: @base1; }
+
+    .cm-string            { color: @green; }
+    .cm-string-2          { color: @green; }
+    .cm-keyword           { color: @green; }
+    .cm-operator-keyword  { color: @green; }
+    .cm-atom              { color: @green; }
+
+    .cm-property-name     { color: @blue; }
+    .cm-tag               { color: @blue; }
+    .cm-qualifier         { color: @blue; }
+    .cm-builtin           { color: @blue; }
+
+    .cm-number            { color: @violet; }
+    .cm-class-name        { color: @violet; }
+    .cm-label-name        { color: @violet; }
+
+    .cm-code-mark         { color: @magenta; }
+    .cm-property          { color: @magenta; }
+
+    .cm-variable-2        { color: @yellow; }
+    .cm-variable          { color: @yellow; }
+
+    .cm-tag-name          { color: @cyan; }
+    .cm-deref-operator    { color: @cyan; }
+
+    .cm-attribute         { color: @orange; }
+
+    .cm-type              { color: @red; }
+
+    .cm-gutters {
+      background-color: @base2;
+      color: @base1;
+    }
+
+    // Hide pilcrows
+    .cm-pilcrow {
+      opacity: 0;
+    }
   }
 
   &.dark {
-    .CodeMirror.cm-s-code-editor {
-      background-color: rgb(65, 65, 65);
+    .code-editor-wrapper {
       border-color: rgb(100, 100, 100);
-      color: @base01;
-      .cm-string     { color: @red; }
-      .cm-string-2   { color: @red; }
-      .cm-keyword    { color: @red; }
-      .cm-atom       { color: @red; }
-      .cm-tag        { color: @blue; }
-      .cm-qualifier  { color: @blue; }
-      .cm-builtin    { color: @blue; }
-      .cm-variable-2 { color: @yellow; }
-      .cm-variable   { color: @yellow; }
-      .cm-comment    { color: @base1; }
-      .cm-attribute  { color: @orange; }
-      .cm-property   { color: @magenta; }
-      .cm-type       { color: @green; }
-      .cm-number     { color: @violet; }
-      .CodeMirror-gutters { background-color: @base01; }
-      .CodeMirror-linenumber { color: @base1; }
+    }
+
+    .cm-editor {
+      background-color: rgb(65, 65, 65);
+      color: @base3;
+      .cm-comment    { color: @base00; }
+      .cm-line-comment { color: @base00; }
+      .cm-block-comment { color: @base00; }
+      .cm-gutters {
+        background-color: @base03;
+        color: @base00;
+        border-color: rgb(100, 100, 100);
+      }
     }
   }
 }

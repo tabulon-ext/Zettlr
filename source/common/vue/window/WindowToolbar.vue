@@ -1,67 +1,100 @@
 <template>
   <div
     id="toolbar"
+    ref="element"
     role="toolbar"
-    v-bind:style="{ top: marginTop }"
     v-bind:class="{
       'has-rtl-traffic-lights': hasRTLTrafficLights
     }"
     v-on:dblclick="handleDoubleClick"
+    v-on:mousedown="$event.preventDefault()"
   >
-    <template v-for="(item, idx) in controls">
-      <ButtonControl
-        v-if="item.type === 'button'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-bind:show-label="showLabels"
-        v-on:click="$emit('click', item.id)"
-      ></ButtonControl>
-      <ToggleControl
-        v-if="item.type === 'toggle'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-bind:show-label="showLabels"
-        v-on:toggle="$emit('toggle', { id: item.id, state: $event })"
-      ></ToggleControl>
-      <ThreeWayToggle
-        v-if="item.type === 'three-way-toggle'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-bind:show-labels="showLabels"
-        v-on:toggle="$emit('toggle', { id: item.id, state: $event })"
-      >
-      </ThreeWayToggle>
-      <RingControl
-        v-if="item.type === 'ring'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-bind:show-label="showLabels"
-        v-bind:progress-percent="item.progressPercent"
-        v-on:click="$emit('click', item.id)"
-      ></RingControl>
-      <SearchControl
-        v-if="item.type === 'search'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-bind:show-label="showLabels"
-        v-on:update:modelValue="$emit('search', $event)"
-      ></SearchControl>
-      <SpacerControl
-        v-if="item.type === 'spacer'"
-        v-bind:key="idx"
-        v-bind:control="item"
-      ></SpacerControl>
-      <TextControl
-        v-if="item.type === 'text'"
-        v-bind:key="idx"
-        v-bind:control="item"
-        v-on:click="$emit('click', item.id)"
-      ></TextControl>
-    </template>
+    <button
+      v-if="canScroll"
+      class="toolbar-overflow left"
+      v-on:click="scrollLeft"
+    >
+      <cds-icon shape="step-forward-2" flip="horizontal"></cds-icon>
+    </button>
+    <div
+      ref="scrollArea"
+      class="toolbar-scroll"
+      v-on:scroll="checkOverflow"
+    >
+      <template v-for="(item, idx) in props.controls">
+        <ButtonControl
+          v-if="item.type === 'button' && item.visible !== false"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-bind:show-label="showLabels"
+          v-bind:button-text="item.buttonText"
+          v-on:click="emit('click', item.id)"
+        ></ButtonControl>
+        <ToggleControl
+          v-if="item.type === 'toggle' && item.visible !== false"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-bind:show-label="showLabels"
+          v-on:toggle="emit('toggle', { id: item.id, state: $event })"
+        ></ToggleControl>
+        <ThreeWayToggle
+          v-if="item.type === 'three-way-toggle'"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-bind:show-labels="showLabels"
+          v-on:toggle="emit('toggle', { id: item.id, state: $event })"
+        >
+        </ThreeWayToggle>
+        <RingControl
+          v-if="item.type === 'ring' && item.visible !== false"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-bind:show-label="showLabels"
+          v-bind:progress-percent="item.progressPercent"
+          v-on:click="emit('click', item.id)"
+        ></RingControl>
+        <SearchControl
+          v-if="item.type === 'search'"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-bind:show-label="showLabels"
+          v-on:update:model-value="emit('search', $event)"
+        ></SearchControl>
+        <SpacerControl
+          v-if="item.type === 'spacer'"
+          v-bind:key="idx"
+          v-bind:control="item"
+        ></SpacerControl>
+        <TextControl
+          v-if="item.type === 'text' && item.visible !== false"
+          v-bind:key="idx"
+          v-bind:control="item"
+          v-on:click="emit('click', item.id)"
+        ></TextControl>
+        <IrisIndicator
+          v-if="item.type === 'iris-indicator' && item.visible !== false"
+          v-bind:id="item.id"
+          v-bind:key="idx"
+          v-bind:tasks-aborted="item.tasksAborted"
+          v-bind:tasks-failed="item.tasksFailed"
+          v-bind:tasks-in-progress="item.tasksInProgress"
+          v-bind:tasks-success="item.tasksSuccess"
+          v-on:click="emit('click', item.id)"
+        >
+        </IrisIndicator>
+      </template>
+    </div>
+    <button
+      v-if="canScroll"
+      class="toolbar-overflow right"
+      v-on:click="scrollRight"
+    >
+      <cds-icon shape="step-forward-2"></cds-icon>
+    </button>
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -76,93 +109,128 @@
  * END HEADER
  */
 
-import ButtonControl from './toolbar-controls/Button.vue'
-import RingControl from './toolbar-controls/RingProgressButton'
-import ToggleControl from './toolbar-controls/Toggle.vue'
-import ThreeWayToggle from './toolbar-controls/ThreeWayToggle'
-import SearchControl from './toolbar-controls/Search.vue'
-import SpacerControl from './toolbar-controls/Spacer.vue'
-import TextControl from './toolbar-controls/Text.vue'
+import ButtonControl, { type ToolbarButtonControl } from './toolbar-controls/ButtonControl.vue'
+import RingControl, { type RingProgressButtonControl } from './toolbar-controls/RingProgressButton.vue'
+import ToggleControl, { type ToolbarToggleControl } from './toolbar-controls/ToggleControl.vue'
+import ThreeWayToggle, { type ToolbarThreeWayControl } from './toolbar-controls/ThreeWayToggle.vue'
+import SearchControl, { type ToolbarSearchControl } from './toolbar-controls/SearchControl.vue'
+import SpacerControl, { type ToolbarSpacerControl } from './toolbar-controls/SpacerControl.vue'
+import TextControl, { type ToolbarTextControl } from './toolbar-controls/TextControl.vue'
+import { onMounted, onBeforeUnmount, ref } from 'vue'
+import IrisIndicator, { type IrisIndicatorControl } from '../IrisIndicator.vue'
+
+export type ToolbarControl = ToolbarButtonControl|RingProgressButtonControl|
+ToolbarSearchControl|ToolbarSpacerControl|ToolbarTextControl|
+ToolbarThreeWayControl|ToolbarToggleControl|IrisIndicatorControl
 
 const ipcRenderer = window.ipc
 
-export default {
-  name: 'WindowToolbar',
-  components: {
-    ButtonControl,
-    RingControl,
-    ToggleControl,
-    ThreeWayToggle,
-    SearchControl,
-    SpacerControl,
-    TextControl
-  },
-  props: {
-    marginTop: {
-      type: String,
-      default: '0px'
-    },
-    controls: {
-      type: Array,
-      default: function () { return [] }
-    },
-    showLabels: {
-      type: Boolean,
-      default: false
-    }
-  },
-  emits: [ 'click', 'dblclick', 'toggle', 'search' ],
-  data: function () {
-    return {
-      hasRTLTrafficLights: false
-    }
-  },
-  computed: {
-  },
-  mounted: function () {
-    // Make sure that (on macOS) we have the correct spacing of the toolbar.
-    ipcRenderer.on('window-controls', (event, message) => {
-      const { command, payload } = message
-      if (command === 'traffic-lights-rtl') {
-        this.hasRTLTrafficLights = payload
-      }
-    })
+const props = defineProps<{ controls: ToolbarControl[], showLabels?: boolean }>()
 
-    // Also send an initial request
-    ipcRenderer.send('window-controls', { command: 'get-traffic-lights-rtl' })
-  },
-  methods: {
-    /**
-     * Handles a double click and emits an event if the target was the toolbar
-     * or one of the spacers.
-     *
-     * @param   {MouseEvent}  event  The triggering mouse event
-     */
-    handleDoubleClick: function (event) {
-      // Only emit a double click event if the user double clicked on the
-      // _toolbar_ or on a spacer, and not just on any button.
-      const t = event.target
-      if (t === this.$el || (t !== null && t.className.includes('spacer') === true)) {
-        this.$emit('dblclick')
-      }
+const element = ref<HTMLDivElement|null>(null)
+
+const emit = defineEmits<{
+  (e: 'click', value: string|undefined): void
+  (e: 'dblclick'): void
+  (e: 'toggle', value: { id: string|undefined, state: string|boolean|undefined }): void
+  (e: 'search', value: string): void
+}>()
+
+const hasRTLTrafficLights = ref<boolean>(false)
+
+const scrollArea = ref<HTMLDivElement|null>(null)
+const canScroll = ref(false)
+// To account for really small differences between `scrollWidth` and `clientWidth`
+// (sometimes only fractions of a pixel), add a small additional tolerance to
+// `clientWidth` to prevent erroneously displaying of the scroll buttons.
+const clientWidthTolerance = 5
+
+function checkOverflow () {
+  if (scrollArea.value) {
+    const sa = scrollArea.value
+    canScroll.value = sa.scrollWidth > (sa.clientWidth + clientWidthTolerance)
+  }
+}
+
+function scrollLeft () {
+  scrollArea.value?.scrollBy({ left: -100, behavior: 'smooth' })
+}
+
+function scrollRight () {
+  scrollArea.value?.scrollBy({ left: 100, behavior: 'smooth' })
+}
+
+onMounted(() => {
+  // Make sure that (on macOS) we have the correct spacing of the toolbar.
+  ipcRenderer.on('window-controls', (event, message) => {
+    const { command, payload } = message
+    if (command === 'traffic-lights-rtl') {
+      hasRTLTrafficLights.value = payload
     }
+  })
+
+  // Also send an initial request
+  ipcRenderer.send('window-controls', { command: 'get-traffic-lights-rtl' })
+
+  checkOverflow()
+  window.addEventListener('resize', checkOverflow)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', checkOverflow)
+})
+
+function handleDoubleClick (event: MouseEvent): void {
+  // Only emit a double click event if the user double clicked on the
+  // _toolbar_ or on a spacer, and not just on any button.
+  const t = event.target as HTMLElement|null
+  if (t === element.value || t?.className.includes('spacer') === true) {
+    emit('dblclick')
   }
 }
 </script>
 
-<style lang="less">
+<style lang="css">
 body div#toolbar {
-  width: 100%;
-  height: 40px;
-  padding: 0px 10px;
-  position: fixed;
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
+  --toolbar-height: 40px;
+  --font-size: 14px;
+  --border-radius: 4px;
 
-  button {
-    // Reset the min-width from generic.less
-    min-width: auto;
+  height: var(--toolbar-height);
+  font-size: var(--font-size);
+  background-color: rgb(245, 245, 245);
+  color: rgb(100, 100, 100);
+
+  height: var(--toolbar-height);
+  padding: 5px 10px;
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  position: relative;
+
+  .toolbar-scroll {
+    display: flex;
+    gap: 5px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  button cds-icon {
+    width: 16px;
+    height: 16px;
+  }
+
+  .toolbar-overflow {
+    width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   div.spacer {
@@ -173,6 +241,7 @@ body div#toolbar {
 
   div.toolbar-group {
     text-align: center;
+    display: flex;
 
     span.toolbar-label {
       display: block;
@@ -180,22 +249,47 @@ body div#toolbar {
       text-align: center;
     }
   }
+
+  button {
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0 10px;
+    margin: 0 4px;
+    border-radius: var(--border-radius);
+    background-color: transparent;
+    border: none;
+
+    &:hover, &.toolbar-overflow {
+      background-color: rgb(230, 230, 230);
+    }
+  }
+
+  &:window-inactive {
+    background-color: rgb(34, 34, 34);
+    color: rgb(100, 100, 100);
+  }
+}
+
+body.dark div#toolbar {
+  background-color: rgb(51, 51, 51);
+  color: rgb(172, 172, 172);
+
+  button {
+    &:hover, &.toolbar-overflow {
+      background-color: rgb(60, 60, 60);
+    }
+  }
 }
 
 body.darwin {
-  @toolbar-height: 40px;
-  @font-size: 14px;
-
   div#toolbar {
-    // On macOS, there is no titlebar, and as such we need to make the toolbar draggable
+    /* On macOS, there is no titlebar, and as such we need to make the toolbar draggable */
     -webkit-app-region: drag;
-    & > * { -webkit-app-region: no-drag; }
+    button, .toolbar-text { -webkit-app-region: no-drag; }
 
-    height: @toolbar-height;
-    font-size: @font-size;
-    background-color: rgb(245, 245, 245);
-
-    // Make space for the traffic lights, either on the left side or the right.
+    /* Make space for the traffic lights, either on the left side or the right. */
     &:not(.has-rtl-traffic-lights) {
       padding-left: 80px;
     }
@@ -204,125 +298,6 @@ body.darwin {
     }
 
     color: rgb(100, 100, 100);
-
-    button {
-      border-radius: 4px;
-      background-color: transparent;
-      border: none;
-      padding: 4px 8px;
-
-      &:hover {
-        background-color: rgb(230, 230, 230);
-      }
-    }
-  }
-
-  &.dark {
-    // Dark styling
-    div#toolbar {
-      background-color: rgb(51, 51, 51);
-      color: rgb(172, 172, 172);
-
-      button:hover {
-        background-color: rgb(60, 60, 60,);
-      }
-
-      &:window-inactive {
-        background-color: rgb(34, 34, 34);
-        color: rgb(100, 100, 100);
-      }
-    }
-  }
-}
-
-body.win32 {
-  @toolbar-height: 40px;
-  @font-size: 14px;
-
-  div#toolbar {
-    height: @toolbar-height;
-    font-size: @font-size;
-    background-color: rgb(245, 245, 245);
-    color: rgb(100, 100, 100);
-
-    button {
-      background-color: transparent;
-      border: none;
-      padding: 4px 8px;
-
-      &:hover {
-        background-color: rgb(230, 230, 230);
-      }
-    }
-  }
-
-  &.dark {
-    // Dark styling
-    div#toolbar {
-      background-color: rgb(51, 51, 51);
-      color: rgb(172, 172, 172);
-
-      button{
-        color: white;
-
-        &:hover {
-          background-color: rgb(60, 60, 60,);
-        }
-      }
-
-      &:window-inactive {
-        background-color: rgb(34, 34, 34);
-        color: rgb(100, 100, 100);
-      }
-    }
-  }
-}
-
-body.linux {
-  @toolbar-height: 40px;
-  @font-size: 14px;
-  @border-radius: 4px;
-
-  div#toolbar {
-    height: @toolbar-height;
-    font-size: @font-size;
-    background-color: rgb(245, 245, 245);
-    color: rgb(100, 100, 100);
-
-    button {
-      background-color: transparent;
-      border: 1px solid rgb(180, 180, 180);
-      padding: 0px;
-      border-radius: @border-radius;
-      width: 35px;
-      height: 25px;
-      margin: 0 4px;
-
-      &:hover {
-        background-color: rgb(230, 230, 230);
-      }
-    }
-  }
-
-  &.dark {
-    // Dark styling
-    div#toolbar {
-      background-color: rgb(51, 51, 51);
-      color: rgb(172, 172, 172);
-
-      button{
-        color: white;
-
-        &:hover {
-          background-color: rgb(60, 60, 60,);
-        }
-      }
-
-      &:window-inactive {
-        background-color: rgb(34, 34, 34);
-        color: rgb(100, 100, 100);
-      }
-    }
   }
 }
 </style>

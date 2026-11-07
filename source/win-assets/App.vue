@@ -6,7 +6,7 @@
     v-bind:show-tabbar="true"
     v-bind:tabbar-tabs="tabs"
     v-bind:tabbar-label="'Defaults'"
-    v-bind:disable-vibrancy="true"
+    v-bind:disable-vibrancy="!hasVibrancy"
     v-on:tab="currentTab = $event"
   >
     <!--
@@ -20,85 +20,147 @@
       style="height: 100%;"
     >
       <!-- Export defaults -->
-      <Defaults
+      <DefaultsTab
         v-if="tabs[currentTab].id === 'tab-export-control'"
         v-bind:which="'export'"
-      ></Defaults>
+      ></DefaultsTab>
       <!-- Import defaults -->
-      <Defaults
+      <DefaultsTab
         v-if="tabs[currentTab].id === 'tab-import-control'"
         v-bind:which="'import'"
-      ></Defaults>
-      <!-- Custom CSS -->
-      <CustomCSS
-        v-else-if="tabs[currentTab].id === 'tab-custom-css-control'"
-      ></CustomCSS>
+      ></DefaultsTab>
+      <!-- Lua Filter editor -->
+      <FilterTab
+        v-else-if="tabs[currentTab].id === 'tab-filter-control'"
+      ></FilterTab>
       <!-- Snippets Editor -->
       <SnippetsTab
         v-else-if="tabs[currentTab].id === 'tab-snippets-control'"
       ></SnippetsTab>
+      <!-- Custom CSS -->
+      <CustomCSS
+        v-else-if="tabs[currentTab].id === 'tab-custom-css-control'"
+      ></CustomCSS>
     </div>
   </WindowChrome>
 </template>
 
-<script lang="ts">
-import WindowChrome from '../common/vue/window/Chrome.vue'
-import Defaults from './Defaults.vue'
+<script setup lang="ts">
+import WindowChrome from '@common/vue/window/WindowChrome.vue'
+import DefaultsTab from './DefaultsTab.vue'
 import CustomCSS from './CustomCSS.vue'
 import SnippetsTab from './SnippetsTab.vue'
-import { trans } from '../common/i18n-renderer'
-import { defineComponent } from 'vue'
+import { trans } from '@common/i18n-renderer'
+import { ref, computed } from 'vue'
+import { type WindowTab } from '@common/vue/window/WindowTabbar.vue'
+import { useConfigStore } from 'source/pinia'
+import FilterTab from './FilterTab.vue'
 
-export default defineComponent({
-  components: {
-    WindowChrome,
-    Defaults,
-    CustomCSS,
-    SnippetsTab
-  },
-  data: function () {
-    return {
-      tabs: [
-        {
-          label: trans('dialog.defaults.exporting_title'),
-          controls: 'tab-export',
-          id: 'tab-export-control',
-          icon: 'export'
-        },
-        {
-          label: trans('dialog.defaults.importing_title'),
-          controls: 'tab-import',
-          id: 'tab-import-control',
-          icon: 'import'
-        },
-        {
-          label: trans('dialog.custom_css.title'),
-          controls: 'tab-custom-css',
-          id: 'tab-custom-css-control',
-          icon: 'code'
-        },
-        {
-          label: trans('dialog.snippets.title'),
-          controls: 'tab-snippets',
-          id: 'tab-snippets-control',
-          icon: 'pinboard'
-        }
-      ],
-      currentTab: 0
-    }
-  },
-  computed: {
-    windowTitle: function (): string {
-      if (document.body.classList.contains('darwin')) {
-        return this.tabs[this.currentTab].label
-      } else {
-        return trans('gui.assets_man.win_title')
-      }
-    }
+const currentTab = ref(0)
+const windowTitle = computed(() => {
+  if (document.body.classList.contains('darwin')) {
+    return tabs[currentTab.value].label
+  } else {
+    return trans('Assets Manager')
   }
 })
+
+const configStore = useConfigStore()
+const hasVibrancy = computed(() => configStore.config.window.vibrancy && process.platform === 'darwin')
+
+const tabs: WindowTab[] = [
+  {
+    label: trans('Exporting'),
+    controls: 'tab-export',
+    id: 'tab-export-control',
+    icon: 'export'
+  },
+  {
+    label: trans('Importing'),
+    controls: 'tab-import',
+    id: 'tab-import-control',
+    icon: 'import'
+  },
+  {
+    label: trans('Lua Filter'),
+    controls: 'tab-filter',
+    id: 'tab-filter-control',
+    icon: 'filter'
+  },
+  {
+    label: trans('Snippets'),
+    controls: 'tab-snippets',
+    id: 'tab-snippets-control',
+    icon: 'pinboard'
+  },
+  {
+    label: trans('Custom CSS'),
+    controls: 'tab-custom-css',
+    id: 'tab-custom-css-control',
+    icon: 'code'
+  }
+]
 </script>
 
 <style lang="less">
-//
+.asset-container-list {
+  display: flex;
+  flex-direction: column;
+  height: stretch;
+
+  .form-control {
+    display: flex;
+    padding: 10px;
+
+    button {
+      flex: 1;
+    }
+  }
+}
+
+.asset-container {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  margin: 0px 10px;
+
+  .asset-admonition {
+    margin-top: 15px;
+  }
+
+  .asset-input {
+    display: flex;
+    gap: 15px;
+    margin-top: 5px;
+
+    .asset-input-name {
+      flex: 2;
+    }
+
+    .asset-input-button {
+      button {
+        height: stretch;
+      }
+    }
+  }
+
+  .save-asset-file {
+    padding: 10px 0px;
+    display: flex;
+    gap: 15px;
+
+    button {
+      width: 50px;
+    }
+  }
+
+  .CodeMirror {
+    flex-grow: 1;
+  }
+
+  span.protected-info {
+    color: gray;
+  }
+}
 </style>

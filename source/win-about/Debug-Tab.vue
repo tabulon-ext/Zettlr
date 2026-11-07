@@ -5,23 +5,33 @@
       Zettlr.
     </p>
     <h2>General Information</h2>
-    <p>Zettlr Version: <strong>{{ version }}</strong> (UUID: {{ uuid }})</p>
-    <p>
-      System: <strong>{{ platform }} {{ platformVersion }}</strong>
-      (architecture: {{ arch }})
-    </p>
+    <ul>
+      <li>Zettlr Version: <strong>{{ configStore.config.version }}</strong></li>
+      <li>Build number: <strong><code>{{ commit }}</code></strong> ({{ buildDate }})</li>
+      <li>UUID: <strong><code>{{ configStore.config.uuid }}</code></strong></li>
+      <li>
+        System: <strong>{{ platform }} {{ platformVersion }}</strong>
+        (architecture: {{ arch }})
+      </li>
+    </ul>
     <h2>Build Dependencies</h2>
     <p>
-      This build was compiled using
-      <ul>
-        <li>Node.js <strong>v{{ versions.node }}</strong></li>
-        <li>Electron <strong>v{{ versions.electron }}</strong></li>
-        <li>Chrome <strong>v{{ versions.chrome }}</strong></li>
-        <li>v8 engine <strong>v{{ versions.v8 }}</strong></li>
-        <li>Zlib <strong>v{{ versions.zlib }}</strong></li>
-        <li>OpenSSL <strong>v{{ versions.openssl }}</strong></li>
-      </ul>
+      This build was compiled using:
     </p>
+    <ul>
+      <li>Node.js <strong>v{{ versions.node }}</strong></li>
+      <li>Electron <strong>v{{ versions.electron }}</strong></li>
+      <li>Chrome <strong>v{{ versions.chrome }}</strong></li>
+      <li>v8 engine <strong>v{{ versions.v8 }}</strong></li>
+      <li>Zlib <strong>v{{ versions.zlib }}</strong></li>
+      <li>OpenSSL <strong>v{{ versions.openssl }}</strong></li>
+    </ul>
+    <h2>Helper programs</h2>
+    <ul>
+      <li>Pandoc: <strong>{{ programVersions.pandoc }}</strong></li>
+      <li>Quarto: <strong>{{ programVersions.quarto }}</strong></li>
+      <li>Git SVN: <strong>{{ programVersions.git }}</strong></li>
+    </ul>
     <h2>Renderer flags</h2>
     <ul>
       <li v-for="(arg, idx) in argv" v-bind:key="idx">
@@ -30,14 +40,27 @@
     </ul>
     <h2>Environment Variables</h2>
     <ul>
-      <li v-for="(key, value, idx) in env" v-bind:key="idx">
-        <strong>{{ value }}</strong>: {{ key }}
+      <li v-for="(value, key, idx) in env" v-bind:key="idx">
+        <strong>{{ key }}</strong>:
+        <template v-if="key === 'PATH'">
+          <ul>
+            <li v-for="segment in value?.split(PATH_SEP)" v-bind:key="segment">
+              {{ segment }}
+            </li>
+          </ul>
+        </template>
+        <template v-else>
+          {{ value }}
+        </template>
       </li>
     </ul>
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
+import { DateTime } from 'luxon'
+import { useConfigStore } from 'source/pinia'
+
 /**
  * @ignore
  * BEGIN HEADER
@@ -52,30 +75,31 @@
  * END HEADER
  */
 
-import { defineComponent } from 'vue'
+const configStore = useConfigStore()
 
-export default defineComponent({
-  name: 'DebugTab',
-  data: function () {
-    return {
-      version: (global as any).config.get('version'),
-      uuid: (global as any).config.get('uuid'),
-      versions: process.versions,
-      argv: process.argv,
-      arch: process.arch,
-      env: Object.assign({}, process.env),
-      platform: process.platform,
-      platformVersion: process.getSystemVersion
-    }
-  },
-  methods: {
-  }
-})
+const PATH_SEP = process.platform === 'win32' ? ';' : ':'
+
+const versions = process.versions
+const argv = process.argv
+const arch = process.arch
+const env = Object.assign({}, process.env)
+const platform = process.platform
+const commit = __GIT_COMMIT_HASH__
+const buildDate = DateTime.fromISO(__BUILD_DATE__).toLocaleString({ dateStyle: 'full' })
+// DEBUG: getSystemVersion is a simple property in the renderer, not a function
+const platformVersion = process.getSystemVersion as unknown as string
+// Add version strings for external helper programs Zettlr can use
+const programVersions = {
+  pandoc: process.env.PANDOC_VERSION ?? 'not available',
+  quarto: process.env.QUARTO_VERSION ?? 'not available',
+  git: process.env.GIT_VERSION ?? 'not available'
+}
 </script>
 
-<style lang="less">
+<style lang="css" scoped>
 div#debug-tab {
   user-select: text;
+  word-break: break-word;
   * {
     margin: revert;
   }

@@ -1,64 +1,56 @@
 <template>
   <div id="chart-container">
-    <!--
-      The chart view enables users to view the following data:
+    <h1>{{ chartLabel }}</h1>
 
-      1. By default the current week (UOA: Day)
-      2. The current month (UOA: Day)
-      3. The current year (UOA: Week)
+    <p>
+      {{ chartIntro }}
+    </p>
 
-      A toggle allows the users to compare the current one with all others
-      of the same level. That is: All weeks (of the current year), all months,
-      and all years.
-
-      This means, at maximum, you will have: 52 lines for weeks,
-      12 lines for month, and x lines for years.
-
-      If the compare-toggle is on, switching to different timeframes will take
-      the next-higher unit of analysis. So if you're comparing weeks, the switch
-      will rotate between years, just as with months. And with years, you'll
-      not have a switch at all. I'll change that probably in 2028, because then
-      the first people will have a decade of years, but even then it would only
-      be ten lines. I think anything below 52 is okay-ish :D
-    -->
-    <h1>{{ chartLabel }} {{ currentYear }}</h1>
-    <ButtonControl
-      v-bind:disabled="unit === 'year' || currentYear <= earliestYear"
-      v-bind:icon="'angle left'"
-      v-bind:label="String(currentYear - 1)"
-      v-bind:inline="true"
-      v-on:click="prevYear()"
-    >
-    </ButtonControl>
-    <SelectControl
-      v-model="unit"
-      v-bind:options="{
-        'month': 'Month',
-        'year': 'Year'
-      }"
-      v-bind:inline="true"
-    ></SelectControl>
-    <ButtonControl
-      v-bind:disabled="unit === 'year' || currentYear >= latestYear"
-      v-bind:icon="'angle right'"
-      v-bind:label="String(currentYear + 1)"
-      v-bind:inline="true"
-      v-on:click="nextYear()"
-    >
-    </ButtonControl>
-    <!-- Now finally the canvas -->
-    <canvas
-      id="main-chart"
-      ref="chart"
-      width="400"
-      height="250"
-      aria-label="Main Chart Display"
-      role="img"
-    ></canvas>
+    <div class="chart">
+      <div class="chart-area">
+        <div class="chart-legend">
+          <span class="legend-indicator primary"></span>
+          <span>{{ legendThisWeek }}</span>
+          <span class="legend-indicator secondary"></span>
+          <span>{{ legendThisYear }}</span>
+          <span class="legend-indicator tertiary"></span>
+          <span>{{ legendLastYear }}</span>
+        </div>
+        <div
+          v-for="mean, i in meansByWeekday.week"
+          v-bind:key="i"
+          class="bar-group"
+        >
+          <div
+            class="bar primary"
+            v-bind:style="`height: ${mean/(maxValue*1.1)*100+5}%`"
+          >
+          </div>
+          <div
+            class="bar secondary"
+            v-bind:style="`height: ${meansByWeekday.year[i]/(maxValue*1.1)*100+5}%`"
+          ></div>
+          <div
+            class="bar tertiary"
+            v-bind:style="`height: ${meansByWeekday.lastYear[i]/(maxValue*1.1)*100+5}%`"
+          ></div>
+        </div>
+      </div>
+      <div class="x-axis">
+        <p v-for="day in weekdays" v-bind:key="day" class="tick">
+          {{ day }}
+        </p>
+      </div>
+      <div class="y-axis">
+        <p v-for="val in yTicks" v-bind:key="val" class="tick">
+          {{ val }}
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -74,340 +66,196 @@
  */
 
 import { DateTime } from 'luxon'
-import { trans } from '../common/i18n-renderer'
-import {
-  Chart,
-  ChartData,
-  ChartDataset,
-  CategoryScale,
-  LinearScale,
-  LineController,
-  PointElement,
-  LineElement,
-  ChartConfiguration
-} from 'chart.js'
-import SelectControl from '../common/vue/form/elements/Select.vue'
-import ButtonControl from '../common/vue/form/elements/Button.vue'
-import { defineComponent, PropType } from 'vue'
+import { trans } from '@common/i18n-renderer'
+import { computed } from 'vue'
+import { useStatisticsStore } from '../pinia/statistics-store'
 
-// Register the components of Chart.js which we need
-Chart.register(CategoryScale, LinearScale, LineController, PointElement, LineElement)
+const statisticsStore = useStatisticsStore()
 
-let chart: Chart|null = null
+const weekdays = [
+  trans('Monday'),
+  trans('Tuesday'),
+  trans('Wednesday'),
+  trans('Thursday'),
+  trans('Friday'),
+  trans('Saturday'),
+  trans('Sunday')
+]
 
-export default defineComponent({
-  name: 'ChartView',
-  components: {
-    SelectControl,
-    ButtonControl
-  },
-  props: {
-    wordCounts: {
-      type: Object as PropType<{ [key: string]: number }>,
-      required: true
-    }
-  },
-  data: function () {
-    return {
-      now: DateTime.local(),
-      currentYear: DateTime.local().year,
-      currentMonth: DateTime.local().month,
-      unit: 'month' // Possible display unit
-    }
-  },
-  computed: {
-    chartLabel: function (): string {
-      return trans('dialog.statistics.tabs.chart_label')
-    },
-    earliestYear: function (): number {
-      const years = Object.keys(this.wordCounts).map(k => parseInt(k.substr(0, 4), 10))
-      let min = +Infinity
-      for (const year of years) {
-        if (min > year) {
-          min = year
-        }
-      }
+// Static properties
+const chartLabel = trans('Charts')
+const chartIntro = trans('This chart shows your current word count and compares it to the average of this and the previous year(s).')
+const legendThisWeek = trans('This week')
+const legendThisYear = trans('This year')
+const legendLastYear = trans('Last year')
 
-      return min
-    },
-    latestYear: function (): number {
-      const years = Object.keys(this.wordCounts).map(k => parseInt(k.substr(0, 4), 10))
-      let max = -Infinity
-      for (const year of years) {
-        if (max < year) {
-          max = year
-        }
-      }
+const today = DateTime.now()
 
-      return max
-    },
-    earliestMonth: function (): number {
-      // Returns the earliest month given the current _year_
-      const months = Object.keys(this.wordCounts).filter(k => {
-        const year = parseInt(k.substr(0, 4), 10)
-        return year === this.currentYear
-      }).map(k => {
-        return parseInt(k.substr(5, 2), 10)
-      })
+const maxValue = computed(() => {
+  return Math.max(...meansByWeekday.value.week, ...meansByWeekday.value.year, ...meansByWeekday.value.lastYear)
+})
 
-      let min = +Infinity
-      for (const month of months) {
-        if (min > month) {
-          min = month
-        }
-      }
-      return min
-    },
-    latestMonth: function (): number {
-      const months = Object.keys(this.wordCounts).filter(k => {
-        const year = parseInt(k.substr(0, 4), 10)
-        return year === this.currentYear
-      }).map(k => {
-        return parseInt(k.substr(5, 2), 10)
-      })
+const minValue = computed(() => {
+  return Math.min(...meansByWeekday.value.week, ...meansByWeekday.value.year, ...meansByWeekday.value.lastYear)
+})
 
-      let max = -Infinity
-      for (const month of months) {
-        if (max < month) {
-          max = month
-        }
-      }
-      return max
-    },
-    /**
-     * Returns year datasets
-     *
-     * @return  {Array}  An array for year-datasets
-     */
-    years: function (): ChartData {
-      // Years are computed on a week-wise basis
-      const datasets: ChartDataset[] = []
-      const labels: string[] = []
-
-      for (let i = this.earliestYear; i <= this.latestYear; i++) {
-        // Initialise some variables: The beginning (Jan 1st), the end (probably
-        // Dec 31st, but I don't take any bets, as to why, see this video:
-        // https://youtu.be/-5wpm-gesOY).
-        let pointer = DateTime.local(i, 1, 1)
-        const end = pointer.endOf('year')
-        // We need to store the current week we're in because yearly statistics
-        // are calculated on a per-week basis.
-        let lastWeek = pointer.weekNumber
-
-        // Each dataset needs to conform to Chart.js's config
-        // TODO: Better algorithm for the colours
-        const randR = Math.random() * 255
-        const randG = Math.random() * 255
-        const randB = Math.random() * 255
-        const year: ChartDataset = {
-          label: String(pointer.year),
-          pointRadius: 0,
-          borderColor: `rgba(${randR}, ${randG}, ${randB}, 0.7)`,
-          backgroundColor: `rgba(${randR}, ${randG}, ${randB}, 0.7)`, // Necessary for tooltips
-          pointHoverBorderColor: `rgba(${randR}, ${randG}, ${randB}, 1.0)`,
-          pointHoverBackgroundColor: `rgba(${randR}, ${randG}, ${randB}, 1.0)`,
-          tension: 0.0,
-          fill: false,
-          data: []
-        }
-
-        // Now, basically go over all days in the year. As soon as the diff
-        // between pointer and end is bigger than zero, the pointer is in the
-        // next year, and that's when we stop.
-        while (pointer.diff(end, 'days').days <= 0) {
-          let weekCount = 0
-
-          // As long as we're in the same week, add up all daily counts.
-          while (pointer.weekNumber === lastWeek) {
-            const dayCount = this.wordCounts[pointer.toFormat('yyyy-MM-dd')]
-            if (dayCount !== undefined) {
-              weekCount += dayCount
-            }
-            // Progress one day.
-            pointer = pointer.plus({ days: 1 })
-          }
-
-          const weekLabel = `Week ${lastWeek}`
-          if (!labels.includes(weekLabel)) {
-            // Prevent pushing this label multiple times
-            labels.push(weekLabel)
-          }
-
-          // We're in the next week, store the current pointer's (= next) week
-          lastWeek = pointer.weekNumber
-
-          // Also, add the data point, using pointer minus 1 day to stay in the
-          // last week.
-          year.data.push({
-            // BUG: Fix this type annotation, somehow those Dates don't work
-            x: pointer.minus({ days: 1 }).toJSDate() as unknown as number,
-            y: weekCount
-          })
-        }
-
-        // Finally, after the outer while, push the now complete dataset.
-        datasets.push(year)
-      }
-
-      return {
-        labels: labels,
-        datasets: datasets
-      }
-    },
-    months: function (): ChartData {
-      // Months are calculated on a day-basis per year.
-      const datasets = []
-      const labels: any[] = []
-
-      for (let i = this.earliestMonth; i <= this.latestMonth; i++) {
-        let pointer = DateTime.local(this.currentYear, i, 1)
-        const end = pointer.endOf('month')
-
-        // Each dataset needs to conform to Chart.js's config
-        // TODO: Better algorithm for the colours
-        const randR = Math.random() * 255
-        const randG = Math.random() * 255
-        const randB = Math.random() * 255
-        const month: ChartDataset = {
-          label: pointer.toLocaleString({ month: 'long' }),
-          pointRadius: 0,
-          borderColor: `rgba(${randR}, ${randG}, ${randB}, 0.7)`,
-          backgroundColor: `rgba(${randR}, ${randG}, ${randB}, 0.7)`, // Necessary for tooltips
-          pointHoverBorderColor: `rgba(${randR}, ${randG}, ${randB}, 1.0)`,
-          pointHoverBackgroundColor: `rgba(${randR}, ${randG}, ${randB}, 1.0)`,
-          tension: 0.0,
-          fill: false,
-          data: []
-        }
-
-        while (pointer.diff(end, 'days').days <= 0) {
-          let dayCount = this.wordCounts[pointer.toFormat('yyyy-MM-dd')]
-          if (dayCount === undefined) {
-            dayCount = 0
-          }
-
-          const dayLabel = `Day ${pointer.day}`
-          if (!labels.includes(dayLabel)) {
-            // Prevent pushing this label multiple times
-            labels.push(dayLabel)
-          }
-
-          month.data.push({
-            // BUG: Fix this type annotation, somehow those Dates don't work
-            x: pointer.toJSDate() as unknown as number,
-            y: dayCount
-          })
-          // Progress one day.
-          pointer = pointer.plus({ days: 1 })
-        }
-
-        datasets.push(month)
-      }
-
-      return {
-        labels: labels,
-        datasets: datasets
-      }
-    },
-    currentData: function (): ChartData {
-      // Just returns the data necessary for the chart library that can then
-      // be plugged into it.
-      return (this.unit === 'year') ? this.years : this.months
-    }
-  },
-  watch: {
-    currentData: function () {
-      if (chart !== null) {
-        chart.data = this.currentData
-        chart.update()
-      }
-    }
-  },
-  mounted: function () {
-    this.createChart(this.currentData)
-  },
-  beforeUnmount: function () {
-    if (chart !== null) {
-      chart.destroy()
-    }
-  },
-  methods: {
-    createChart: function (initialData: ChartData) {
-      if (chart !== null) {
-        return // Not gonna recreate the chart, we only need one thing.
-      }
-
-      chart = new Chart(this.$refs.chart as HTMLCanvasElement, {
-        type: 'line',
-        data: initialData,
-        options: {
-          // Scales configuration
-          scales: {
-            y: {
-              title: {
-                text: 'Words',
-                display: true
-              },
-              gridLines: {
-                display: true, // Whether to display them at all
-                drawOnChartArea: true, // Gridlines on the chart
-                drawTicks: true // Gridlines off the charts, so to speak
-              },
-              ticks: {
-                display: true,
-                beginAtZero: false
-              }
-            },
-            x: {
-              title: {
-                text: 'Time',
-                display: true
-              },
-              gridLines: {
-                display: true, // Whether to display them at all
-                drawOnChartArea: false, // Gridlines on the chart
-                drawTicks: true // Gridlines off the charts, so to speak
-              },
-              ticks: {
-                display: true
-              }
-            }
-          },
-          // Generic options we need every time
-          responsive: true,
-          maintainAspectRatio: true,
-          // Tooltips should be fastly visible
-          plugins: {
-            tooltip: {
-              mode: 'index',
-              intersect: false
-            },
-            hover: {
-              mode: 'index',
-              intersect: false
-            }
-          }
-        }
-      } as ChartConfiguration) // END chart instantiation
-    },
-    prevYear: function (): void {
-      // Decrease the unit by one if possible
-      if (this.currentYear > this.earliestYear) {
-        this.currentYear -= 1
-      }
-    },
-    nextYear: function (): void {
-      // Increase by one, if possible
-      if (this.currentYear < this.latestYear) {
-        this.currentYear += 1
-      }
-    }
+const yTicks = computed(() => {
+  const range = maxValue.value - minValue.value
+  const nTicks = 5
+  const ticks = []
+  for (let i = 0; i < nTicks; i++) {
+    const interval = range / nTicks
+    ticks.push(Math.round(minValue.value + i * interval))
   }
+
+  if (ticks.every(t => Number.isNaN(t))) {
+    return ticks.map((t, idx) => idx * 100).toReversed()
+  }
+
+  return ticks.toReversed()
+})
+
+const meansByWeekday = computed(() => {
+  // Take our words ...
+  const words = Object.entries(statisticsStore.stats.wordCount)
+    // ... map them to DateTimes ...
+    .map<[ isoDate: DateTime, count: number ]>(val => [ DateTime.fromISO(val[0]), val[1] ])
+    // ... and filter out invalids.
+
+  // Then, we need three arrays: this week, this year, and previous year.
+
+  // First, filter out the numbers for this week.
+  const lastMonday = today.minus({ days: today.weekday - 1 })
+  const thisWeek = words.filter(val => val[0] >= lastMonday && val[0] <= today)
+
+  const week = [ 0, 0, 0, 0, 0, 0, 0 ]
+  for (const [ day, count ] of thisWeek) {
+    week[day.weekday - 1] = count
+  }
+
+  // Next, we need averages for the entire year
+  const year = words
+    .filter(val => val[0].year === today.year)
+    .reduce((acc, cur) => {
+      acc[cur[0].weekday - 1].push(cur[1])
+      return acc
+    }, [ [], [], [], [], [], [], [] ] as number[][])
+    .map(d => d.reduce((prev, cur) => prev + cur, 0) / d.length)
+  
+  const lastYear = words
+    .filter(val => val[0].year === today.year - 1)
+    .reduce((acc, cur) => {
+      acc[cur[0].weekday - 1].push(cur[1])
+      return acc
+    }, [ [], [], [], [], [], [], [] ] as number[][])
+    .map(d => d.reduce((prev, cur) => prev + cur, 0) / d.length)
+
+  return { week, year, lastYear }
 })
 </script>
 
 <style lang="less">
 body div#chart-container {
   padding: 10px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+
+  .chart {
+    margin: 20px 0;
+    height: 100%;
+    width: 100%;
+    display: grid;
+    gap: 5px;
+    grid-template-areas: "y-axis chart-area" "none x-axis";
+    grid-template-columns: auto 1fr;
+    grid-template-rows: 1fr auto;
+
+    .chart-area {
+      grid-area: chart-area;
+      position: relative;
+      display: flex;
+      flex-direction: row;
+      justify-content: space-evenly;
+      gap: 10px;
+      border: 2px solid gray;
+
+      .bar-group {
+        height: 100%;
+        // Enforce even width of all elements
+        flex-grow: 1;
+        flex-basis: 0;
+
+        display: flex;
+        justify-content: center;
+        align-items: end;
+        gap: 5px;
+  
+        .bar {
+          overflow: visible;
+          width: 20px;
+          border-top-right-radius: 4px;
+          border-top-left-radius: 4px;
+          background-color: gray;
+          box-shadow: inset 4px 4px 4px 0px rgb(180 180 180 / 28%);
+        }
+      }
+  
+      .chart-legend {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid gray;
+        padding: 4px;
+        border-radius: 4px;
+        top: 4px;
+        left: 4px;
+  
+        span.legend-indicator {
+          display: inline-block;
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+        }
+      }
+    }
+
+    .primary { background-color: rgb(51, 112, 254) !important; }
+    .secondary { background-color: rgb(22, 200, 162) !important; }
+    .tertiary { background-color: rgb(6, 131, 159) !important; }
+  }
+
+
+  .x-axis {
+    display: flex;
+    justify-content: space-evenly;
+    grid-area: x-axis;
+
+    .tick {
+      // Enforce even width of all elements
+      flex-grow: 1;
+      flex-basis: 0;
+      text-align: center;
+    }
+  }
+
+  .y-axis {
+    grid-area: y-axis;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 5% 0;
+
+    .tick {
+      // Enforce even width of all elements
+      flex-grow: 1;
+      flex-basis: 0;
+      text-align: right;
+      display: flex;
+      justify-content: end;
+      align-items: center;
+    }
+  }
 }
 </style>

@@ -1,0 +1,113 @@
+/**
+ * @ignore
+ * BEGIN HEADER
+ *
+ * Contains:        TableEditor keymap
+ * CVM-Role:        Utility
+ * Maintainer:      Hendrik Erz
+ * License:         GNU GPL v3
+ *
+ * Description:     This is the primary keymap for the TableEditor. It is
+ *                  collocated with the other keymaps because it needs to
+ *                  correspond to the `markdownKeymap`, and so it makes sense to
+ *                  keep it here, and merely keep in mind that it heavily
+ *                  relates to the TableEditor component.
+ *
+ * END HEADER
+ */
+
+import { undo, redo } from '@codemirror/commands'
+import { type Extension } from '@codemirror/state'
+import { type EditorView, keymap } from '@codemirror/view'
+import { addColAfter, addColBefore, moveNextCell, movePrevCell, swapNextCol, swapPrevCol } from '../table-editor/commands/columns'
+import { addRowAfter, addRowBefore, moveNextRow, movePrevRow, swapNextRow, swapPrevRow } from '../table-editor/commands/rows'
+import { hiddenSpanField } from '../table-editor/subview'
+import { zettlrKeymap } from '.'
+import { type CustomEditorShortcut, type EditorShortcutName, getCustomShortcut } from './shortcuts'
+import { setAlignment } from '../table-editor/commands/tables'
+import { configField } from '../util/configuration'
+
+/**
+ * This command can be used to override the default selectAll functionality.
+ * Instead of selecting the entire state (= document) it will only select the
+ * cell boundaries.
+ *
+ * @param   {EditorView}  view  The editor view
+ *
+ * @return  {boolean}           Returns true
+ */
+export function selectAllCommand (view: EditorView): boolean {
+  const cursor = view.state.field(hiddenSpanField).cellRange
+  view.dispatch({ selection: { anchor: cursor[0], head: cursor[1] } })
+  return true
+}
+
+/**
+ * This is the table editor keymap that will be assigned to the subviews created
+ * as soon as a user edits a cell. NOTE: This keymap already includes the
+ * primary Zettlr keymap so that all keybindings remain consistent. NOTE further
+ * that this keymap -- unlike the Zettlr one -- is not updated whenever the
+ * shortcuts change. This should not be a problem as the table cell cannot be
+ * focused when the user changes a key binding, and it will take in the correct
+ * keybindings as soon as the user re-focuses the cell (and the subview gets
+ * recreated).
+ *
+ * @param   {EditorView}              mainView           The main editor view
+ * @param   {CustomEditorShortcut[]}  customShortcutMap  The custom shortcut map
+ *
+ * @return  {Extension}                                  The keymap
+ */
+export function tableEditorKeymap (mainView: EditorView, customShortcutMap: CustomEditorShortcut[]): Extension {
+  // Utility function to make retrieval much easier
+  const sc = (name: EditorShortcutName) => {
+    return getCustomShortcut(name, customShortcutMap)
+  }
+
+  const config = mainView.state.field(configField)
+
+  const alignLeft = setAlignment('left')
+  const alignCenter = setAlignment('center')
+  const alignRight = setAlignment('right')
+
+  return [
+    // This is a custom keymap that overrides some of the commands of the Zettlr
+    // keymap to make them work within table editors.
+    keymap.of([
+      // Prevent programmatic insertion of newlines by disabling some
+      // keybindings (except Enter which should move the cursor to the next
+      // row if possible)
+      {
+        key: 'Enter',
+        // NOTE: "?? true" ensures no other keybinding will be called after this.
+        // This prevents the default behavior of inserting a newline character.
+        run: _v => moveNextRow(mainView) ?? true,
+        shift: _v => movePrevRow(mainView) ?? true
+      },
+      // Same for these two commands which disables these keybindings.
+      { key: 'Ctrl-Enter', run: _v => true },
+      { key: 'Mod-Enter', run: _v => true },
+      // Map the undo/redo keys to the main view
+      { key: 'Mod-z', run: _v => undo(mainView), shift: _v => redo(mainView), preventDefault: true },
+      // Override the select all command
+      { key: 'Mod-a', run: selectAllCommand, preventDefault: true },
+      // Add a few more keyboard shortcuts.
+      { key: 'Tab', run: _v => moveNextCell(mainView), shift: _v => movePrevCell(mainView) },
+      { key: sc('table-align-col-left'), run: _v => alignLeft(mainView), preventDefault: true },
+      { key: sc('table-align-col-center'), run: _v => alignCenter(mainView), preventDefault: true },
+      { key: sc('table-align-col-right'), run: _v => alignRight(mainView), preventDefault: true },
+
+      // These commands strictly speaking are block-based (or, rather, they go
+      // beyond the current cell), but because they are very useful, we support
+      // them here (but providing the main view which will handle them accordingly)
+      // NOTE: They are beind `sharedKeymap` since the sharedKeymap for navigation
+      // *within* the table cell needs to take precedence.
+      { key: 'Alt-ArrowUp', run: _v => swapPrevRow(mainView), shift: _v => addRowBefore(mainView) },
+      { key: 'Alt-ArrowDown', run: _v => swapNextRow(mainView), shift: _v => addRowAfter(mainView) },
+      { key: 'Alt-ArrowRight', run: _v => swapNextCol(mainView), shift: _v => addColAfter(mainView) },
+      { key: 'Alt-ArrowLeft', run: _v => swapPrevCol(mainView), shift: _v => addColBefore(mainView) },
+    ]),
+    // Also include the sharedKeymap. The subview transaction filter will
+    // automatically ensure that nothing spanning multiple lines will be executed.
+    zettlrKeymap(customShortcutMap, config)
+  ]
+}

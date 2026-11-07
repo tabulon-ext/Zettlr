@@ -1,29 +1,32 @@
 const rules = require('./webpack.rules')
+const path = require('path')
 
-const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin')
 const { VueLoaderPlugin } = require('vue-loader')
 const { DefinePlugin } = require('webpack')
+
+const plugins = [
+  // Apply webpack rules to the corresponding language blocks in .vue files
+  new VueLoaderPlugin(),
+
+  // Set a few Vue 3 options; see: http://link.vuejs.org/feature-flags
+  new DefinePlugin({
+    __VUE_OPTIONS_API__: true,
+    __VUE_PROD_DEVTOOLS__: false,
+    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: false, // New in Vue 3.4
+    // Quote from the docs: "Note that because the plugin does a direct text
+    // replacement, the value given to it must include actual quotes inside of
+    // the string itself. Typically, this is done either with alternate quotes,
+    // such as '"production"', or by using JSON.stringify('production')."
+    __GIT_COMMIT_HASH__: JSON.stringify(process.env.GIT_COMMIT_HASH),
+    __BUILD_DATE__: JSON.stringify((new Date()).toISOString()),
+    __UPDATES_DISABLED__: JSON.stringify(process.env.ZETTLR_DISABLE_UPDATE_CHECK !== undefined ? '1' : '0')
+  })
+]
 
 rules.push({
   test: /\.less$/,
   use: [{
     loader: 'style-loader' // Create style nodes from JS strings
-  }, {
-    loader: '@teamsupercell/typings-for-css-modules-loader' // Enrich css by typing information
-  }, {
-    loader: 'css-loader' // Translate CSS into JS string
-  }, {
-    loader: 'less-loader' // Compile Less to CSS
-  }],
-  exclude: /theme-main\.less$/
-})
-rules.push({
-  test: /theme-main\.less$/, // The themes need to be imported differently
-  use: [{
-    loader: 'style-loader', // Create style nodes from JS strings
-    options: { injectType: 'lazyStyleTag' } // Lazy-load themes so that we can switch between them
-  }, {
-    loader: '@teamsupercell/typings-for-css-modules-loader' // Enrich css by typing information
   }, {
     loader: 'css-loader' // Translate CSS into JS string
   }, {
@@ -40,24 +43,18 @@ module.exports = {
   // in production (i.e. when we ship to users). NOTE, however, that these env-
   // variables must be set, which we're doing using cross-env in package.json.
   devtool: (process.env.NODE_ENV === 'production') ? false : 'source-map',
-  plugins: [
-    // Enhanced typescript support (e.g. moves typescript type checking to separate process)
-    new ForkTsCheckerWebpackPlugin(),
-
-    // Apply webpack rules to the corresponding language blocks in .vue files
-    new VueLoaderPlugin(),
-
-    // Set a few Vue 3 options; see: http://link.vuejs.org/feature-flags
-    new DefinePlugin({
-      __VUE_OPTIONS_API__: true,
-      __VUE_PROD_DEVTOOLS__: false
-    })
-  ],
+  plugins,
   resolve: {
     extensions: [
       '.js', '.ts', '.jsx', '.tsx',
       '.css', '.less', '.vue'
     ],
+    alias: {
+      source: [path.resolve(__dirname, 'source')],
+      '@common': [path.resolve(__dirname, 'source/common')],
+      '@providers': [path.resolve(__dirname, 'source/app/service-providers')],
+      '@dts': [path.resolve(__dirname, 'source/types')]
+    },
     fallback: {
       // Don't polyfill these modules
       path: false,

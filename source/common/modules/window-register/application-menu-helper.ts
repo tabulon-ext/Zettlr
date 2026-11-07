@@ -15,11 +15,137 @@
  *
  * END HEADER
  */
+import { v4 as uuid } from 'uuid'
 
-const ipcRenderer = (window as any).ipc as Electron.IpcRenderer
+interface SharedItemInfo {
+  id?: string
+  enabled?: boolean
+  action?: () => void
+}
+
+export interface CheckboxRadioItem extends SharedItemInfo {
+  label: string
+  accelerator?: string
+  type: 'checkbox'|'radio'
+  checked: boolean
+}
+
+export interface SeparatorItem {
+  type: 'separator'
+}
+
+export interface SubmenuItem {
+  id?: string
+  label: string
+  type: 'submenu'
+  enabled?: boolean
+  submenu: Array<CheckboxRadioItem|SeparatorItem|SubmenuItem|NormalItem>
+}
+
+export interface NormalItem extends SharedItemInfo {
+  label: string
+  sublabel?: string
+  accelerator?: string
+  type: 'normal'
+}
+
+export type AnyMenuItem = CheckboxRadioItem | SeparatorItem | SubmenuItem | NormalItem
+
+// Any menu item w/o separators
+export type InteractiveMenuItem = CheckboxRadioItem | SubmenuItem | NormalItem
+
+export interface Rect {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
+export interface Point {
+  x: number
+  y: number
+}
+
+const ipcRenderer = window.ipc
+
+/**
+ * Recursively removes any actions found in the provided menu item.
+ *
+ * @param   {AnyMenuItem}  item  The menu item
+ *
+ * @return  {AnyMenuItem}        The modified item
+ */
+function removeActions (item: AnyMenuItem): AnyMenuItem {
+  if (item.type === 'separator') {
+    return { ...item }
+  }
+
+  if (item.type === 'submenu') {
+    return { ...item, submenu: item.submenu.map(removeActions) }
+  }
+
+  if (item.action !== undefined) {
+    return { ...item, action: undefined }
+  }
+
+  return { ...item }
+}
+
+/**
+ * Recursively checks that each item has an ID.
+ *
+ * @param   {AnyMenuItem}  item  The menu item
+ *
+ * @return  {AnyMenuItem}        The modified item
+ */
+function ensureID (item: AnyMenuItem): AnyMenuItem {
+  if (item.type === 'separator') {
+    return { ...item }
+  }
+
+  if (item.type === 'submenu') {
+    return { ...item, submenu: item.submenu.map(ensureID) }
+  }
+
+  if (item.id === undefined) {
+    return { ...item, id: uuid() }
+  }
+
+  return { ...item }
+}
+
+/**
+ * Recursively searches the provided menu for an item.
+ *
+ * @param   {AnyMenuItem[]}  items  The menu
+ * @param   {string}         id     The ID
+ *
+ * @return  {AnyMenuItem}           Either the matching item, or undefined.
+ */
+function findItemById (items: AnyMenuItem[], id: string): AnyMenuItem|undefined {
+  for (const item of items) {
+    if (item.type === 'separator') {
+      continue
+    }
+
+    if (item.type === 'submenu') {
+      const foundItem = findItemById(item.submenu, id)
+      if (foundItem !== undefined) {
+        return foundItem
+      }
+      continue
+    }
+
+    if (item.id === id) {
+      return item
+    }
+  }
+
+  return undefined
+}
 
 // This function displays a custom styled popup menu at the given coordinates
-export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[], callback: (clickedID: string) => void, cleanup = true): () => void {
+export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[], callback?: (clickedID: string) => void, cleanup = true): () => void {
   // Before we do anything, we first must make sure any rogue old context menus
   // are gone.
   if (cleanup) { // NOTE: we need a flag because of submenus
@@ -37,30 +163,53 @@ export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[
     height: 0
   }
 
-  if (position.hasOwnProperty('width') && position.hasOwnProperty('height')) {
-    targetRect = position as Rect
+  if ('width' in position && 'height' in position) {
+    targetRect = position
   } else {
     // A point is basically a rect with no width or height
-    targetRect.top = (position as Point).y
-    targetRect.left = (position as Point).x
+    targetRect.top = position.y
+    targetRect.left = position.x
   }
 
   if (process.platform === 'darwin') {
     // NOTE: On macOS, we don't want the custom styled menus, but rather we want
     // the native context menus (since the custom styled menus are only
     // necessary on those platforms where you have a menu bar we have to manage)
+
+    // Since we MUST make a round through the main process for a native context
+    // menu, we must ensure each item has an ID attached to it so that our
+    // callback can look up the action/callback.
+    items = items.map(ensureID)
+
+    // Furthermore, since the JSON stringifier whines when we try to pass
+    // functions, we have to remove them before sending the stuff over the pipe.
+    const safeItems = items.map(removeActions)
+
     ipcRenderer.invoke('menu-provider', {
       command: 'display-native-context-menu',
       payload: {
-        menu: items,
+        menu: safeItems,
         x: targetRect.left,
         y: targetRect.top
       }
     })
-      .then(clickedID => {
+      .then((clickedID: string|undefined) => {
+        if (clickedID === undefined) {
+          return
+        }
+
         // If the user did click a menu item, notify the caller
-        if (clickedID !== undefined) {
+        const foundItem = findItemById(items, clickedID)
+        if (foundItem === undefined) {
+          return
+        } else if (foundItem.type === 'separator' || foundItem.type === 'submenu') {
+          return
+        } else if (foundItem.action !== undefined) {
+          foundItem.action()
+        } else if (callback !== undefined) {
           callback(clickedID)
+        } else {
+          console.warn(`Could not trigger action for context menu item ${clickedID}: Neither action nor callback provided.`)
         }
       })
       .catch(err => { console.error(err) })
@@ -75,17 +224,23 @@ export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[
   for (const item of items) {
     const menuItem = renderMenuItem(item)
 
-    if (item.type !== 'submenu' && item.type !== 'separator' && item.enabled) {
+    if (item.type !== 'submenu' && item.type !== 'separator' && item.enabled !== false) {
       // Trigger a click on the "real" menu item in the back
       menuItem.addEventListener('mousedown', (event) => {
         event.preventDefault()
         event.stopPropagation()
-        callback((item as NormalItem).id)
+        if (item.action !== undefined) {
+          item.action()
+        } else if (item.id !== undefined && callback !== undefined) {
+          callback(item.id)
+        } else {
+          console.warn(`Registered click on menu item "${item.label}", but it had neither an action, nor an ID attached to it.`)
+        }
         appMenu.parentElement?.removeChild(appMenu) // Close the menu
       })
-    } else if (item.type === 'submenu' && item.enabled) {
+    } else if (item.type === 'submenu' && item.enabled !== false) {
       // Enable displaying the sub menu
-      let closeSubmenu: Function|null = null
+      let closeSubmenu: null|(() => void) = null
 
       appMenu.addEventListener('mousemove', (event: MouseEvent) => {
         const point = { x: event.clientX, y: event.clientY }
@@ -103,7 +258,9 @@ export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[
 
           const subCB = (clickedID: string): void => {
             // Call the regular callback to basically "bubble up" the event
-            callback(clickedID)
+            if (callback !== undefined) {
+              callback(clickedID)
+            }
             // Furthermore, we need to close the parent menu
             appMenu.parentElement?.removeChild(appMenu)
           }
@@ -119,19 +276,30 @@ export default function showPopupMenu (position: Point|Rect, items: AnyMenuItem[
           closeSubmenu = null
         } // Else: Keep it open
       })
+
+      appMenu.addEventListener('mousedown', (event: MouseEvent) => {
+        const point = { x: event.clientX, y: event.clientY }
+        const rect: DOMRect = menuItem.getBoundingClientRect()
+
+        if (pointInRect(point, rect)) {
+          // It's on the menu item, so prevent default and stop propagation so
+          // that the menu doesn't close
+          event.preventDefault()
+          event.stopPropagation()
+        }
+      })
     }
 
     appMenu.appendChild(menuItem)
   }
 
-  if (global.config.get('debug') === true) {
+  if (window.config.get('debug') === true) {
     // In debug mode, add an "inspect element" menu item to each and every
     // context menu that is being opened.
     const menuItem = renderMenuItem({
       id: 'inspect-element',
       label: 'Inspect Element',
-      type: 'normal',
-      enabled: true
+      type: 'normal'
     })
 
     menuItem.addEventListener('mousedown', (event) => {
@@ -185,13 +353,13 @@ function renderMenuItem (item: AnyMenuItem, elementClass?: string): HTMLElement 
   // First create the item
   const menuItem = document.createElement('div')
   menuItem.classList.add('menu-item')
-  if (item.type !== 'separator' && !item.enabled) {
+  if (item.type !== 'separator' && item.enabled === false) {
     menuItem.classList.add('disabled')
   }
 
   menuItem.classList.add(item.type)
-  if (item.hasOwnProperty('id')) {
-    menuItem.dataset.id = (item as NormalItem).id
+  if ('id' in item) {
+    menuItem.dataset.id = item.id
   }
 
   // In case the caller wants an additional class on the item
@@ -206,11 +374,11 @@ function renderMenuItem (item: AnyMenuItem, elementClass?: string): HTMLElement 
 
   // Specials for checkboxes and radios
   if (item.type === 'checkbox' && item.checked) {
-    const icon = document.createElement('clr-icon')
+    const icon = document.createElement('cds-icon')
     icon.setAttribute('shape', 'check')
     statusElement.appendChild(icon)
   } else if (item.type === 'radio') {
-    const icon = document.createElement('clr-icon')
+    const icon = document.createElement('cds-icon')
     icon.setAttribute('shape', (item.checked) ? 'dot-circle' : 'circle')
     statusElement.appendChild(icon)
   }
@@ -228,9 +396,9 @@ function renderMenuItem (item: AnyMenuItem, elementClass?: string): HTMLElement 
   menuItem.appendChild(afterElement)
 
   if (item.type === 'submenu') {
-    const submenuIndicator = document.createElement('clr-icon')
+    const submenuIndicator = document.createElement('cds-icon')
     submenuIndicator.setAttribute('shape', 'angle')
-    submenuIndicator.setAttribute('dir', 'right')
+    submenuIndicator.setAttribute('direction', 'right')
     afterElement.appendChild(submenuIndicator)
   } else if (item.type !== 'separator' && item.accelerator != null) {
     const accel = document.createElement('span')
@@ -295,6 +463,7 @@ function pointInRect (point: Point, rect: Rect): boolean {
  */
 function positionMenu (menu: HTMLElement, target: Rect): void {
   // Now position the element: First generally where it is supposed to be.
+  const PADDING = 10 // Generic padding to the edges of the window
   menu.style.top = `${target.top}px`
   menu.style.left = `${target.left + target.width}px`
   const bounds = menu.getBoundingClientRect()
@@ -316,7 +485,7 @@ function positionMenu (menu: HTMLElement, target: Rect): void {
     menu.style.top = `${window.innerHeight - bounds.height - 10}px`
   } else if (isTooHigh) {
     // Crunch it together (also apply a margin of 10px again)
-    menu.style.top = '10px'
-    menu.style.height = `${window.innerHeight - 20}px`
+    menu.style.top = `${PADDING}px`
+    menu.style.height = `${window.innerHeight - 2 * PADDING}px`
   }
 }

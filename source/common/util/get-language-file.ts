@@ -14,8 +14,8 @@
  * END HEADER
  */
 
-import enumLangFiles, { LangFileMetadata } from './enum-lang-files'
-import findLangCandidates, { Candidate } from './find-lang-candidates'
+import enumLangFiles, { type LangFileMetadata } from './enum-lang-files'
+import findLangCandidates, { type Candidate } from './find-lang-candidates'
 import path from 'path'
 
 /**
@@ -28,7 +28,7 @@ export default function getLanguageFile (query: string): Candidate & LangFileMet
   const fallback: Candidate & LangFileMetadata = {
     tag: 'en-US',
     status: 'fallback',
-    path: path.join(__dirname, '/lang/en-US.json')
+    path: path.join(__dirname, '/lang/en-US.po')
   }
 
   // Now we should have a list of all available dictionaries. Next, we need to

@@ -17,7 +17,7 @@
   </WindowChrome>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -32,54 +32,38 @@
  * END HEADER
  */
 
-import WindowChrome from '../common/vue/window/Chrome.vue'
-import { trans } from '../common/i18n-renderer'
-import { IpcRenderer } from 'electron'
-import { defineComponent } from 'vue'
+import WindowChrome from '@common/vue/window/WindowChrome.vue'
+import { trans } from '@common/i18n-renderer'
+import { type StatusbarControl } from '@common/vue/window/WindowStatusbar.vue'
 
-const ipcRenderer: IpcRenderer = (window as any).ipc
+const ipcRenderer = window.ipc
 
-export default defineComponent({
-  components: {
-    WindowChrome
-  },
-  data: function () {
-    // Retrieve the error information from the URL search params
-    const searchParams = new URLSearchParams(window.location.search)
-    const title = searchParams.get('title')
-    const message = searchParams.get('message')
-    const contents = searchParams.get('contents')
+// Retrieve the error information from the URL search params
+const searchParams = new URLSearchParams(window.location.search)
+const titleParam = searchParams.get('title')
+const message = searchParams.get('message')
+const contents = searchParams.get('contents')
 
-    return {
-      // Because they HAVE to provide both title AND message, those two
-      // variables might be the same for a few error messages. In this
-      // case, fall back to "error".
-      title: (title === message) ? 'Error' : title,
-      message: message,
-      additionalInfo: (contents === '<no-contents>') ? '' : contents
-    }
-  },
-  computed: {
-    statusbarControls: function () {
-      return [
-        {
-          type: 'button',
-          label: trans('system.ok'),
-          id: 'ok',
-          icon: '',
-          buttonClass: 'primary' // It's a primary button
-        }
-      ]
-    }
-  },
-  methods: {
-    handleClick: function (controlID: string) {
-      if (controlID === 'ok') {
-        ipcRenderer.send('window-controls', { command: 'win-close' })
-      }
-    }
+// Because they HAVE to provide both title AND message, those two
+// variables might be the same for a few error messages. In this
+// case, fall back to "error".
+const title = (titleParam === message || titleParam === null) ? 'Error' : titleParam
+const additionalInfo = (contents === '<no-contents>') ? '' : contents
+
+function handleClick (controlID: string): void {
+  if (controlID === 'ok') {
+    ipcRenderer.send('window-controls', { command: 'win-close' })
   }
-})
+}
+
+const statusbarControls: StatusbarControl[] = [
+  {
+    type: 'button',
+    label: trans('Ok'),
+    id: 'ok',
+    buttonClass: 'primary' // It's a primary button
+  }
+]
 </script>
 
 <style lang="less">

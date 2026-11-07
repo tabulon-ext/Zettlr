@@ -15,6 +15,8 @@ Whenever you click an internal link, Zettlr will do two things at once: Start a 
 
 To switch to the file manager or the full text search, you can use the three-way toggle in the upper-left corner of the toolbar.
 
+> You can customize what Zettlr will do if you follow such internal links in the Zettelkasten preferences.
+
 ## Linking Files 🗄
 
 When it comes to cross-linking files within your Zettelkasten, there are two general ways of doing so: Either by using an ID, or its filename (without extension). So if you have a file called “zettelkasten.md” you can link to it by writing `[[zettelkasten]]`. Zettlr will try to find a file with that filename and open it.
@@ -33,7 +35,7 @@ There’s also a tag cloud that you can access by clicking the “tag” icon in
 
 We won’t go over methods for how to actually work with a Zettelkasten here, because there are a lot of tutorials out there that will get you started. Here’s a handy list of good tutorials:
 
-- [A first introduction can be found in our docs](https://docs.zettlr.com/en/academic/zkn-method/)
+- [A first introduction can be found in our docs](https://docs.zettlr.com/en/pkms/zkn-method/)
 - [On the concept of the Zettelkasten, read our blogpost](https://zettlr.com/post/what-is-a-zettelkasten)
 - [The page zettelkasten.de (in English) contains many articles on Zettelkästen](https://zettelkasten.de/)
 - [Reddit has a subreddit dedicated solely to the art of Zettelkasten](https://www.reddit.com/r/Zettelkasten)

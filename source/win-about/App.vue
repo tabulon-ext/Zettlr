@@ -24,19 +24,17 @@
       </ProjectsTab>
       <SponsorsTab v-else-if="currentTab === 2">
       </SponsorsTab>
-      <ContributorsTab v-else-if="currentTab === 3">
-      </ContributorsTab>
-      <LicenseTab v-else-if="currentTab === 4">
+      <LicenseTab v-else-if="currentTab === 3">
       </LicenseTab>
-      <FontLicenseTab v-else-if="currentTab === 5">
+      <FontLicenseTab v-else-if="currentTab === 4">
       </FontLicenseTab>
-      <DebugTab v-else-if="currentTab === 6">
+      <DebugTab v-else-if="currentTab === 5">
       </DebugTab>
     </div>
   </WindowChrome>
 </template>
 
-<script lang="ts">
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -51,87 +49,67 @@
  * END HEADER
  */
 
-import WindowChrome from '../common/vue/window/Chrome.vue'
-import { trans } from '../common/i18n-renderer'
-import { defineComponent } from 'vue'
+import WindowChrome from '@common/vue/window/WindowChrome.vue'
+import { trans } from '@common/i18n-renderer'
+import { ref, computed } from 'vue'
 
 // Import the tabs
 import GeneralTab from './General-Tab.vue'
 import ProjectsTab from './Projects-Tab.vue'
 import SponsorsTab from './Sponsors-Tab.vue'
-import ContributorsTab from './Contributors-Tab.vue'
 import LicenseTab from './License-Tab.vue'
 import FontLicenseTab from './Font-License-Tab.vue'
 import DebugTab from './Debug-Tab.vue'
+import { type WindowTab } from '@common/vue/window/WindowTabbar.vue'
+import { useConfigStore } from 'source/pinia'
 
-export default defineComponent({
-  components: {
-    WindowChrome,
-    GeneralTab,
-    ProjectsTab,
-    SponsorsTab,
-    ContributorsTab,
-    LicenseTab,
-    FontLicenseTab,
-    DebugTab
+const configStore = useConfigStore()
+
+const currentTab = ref(0)
+const tabs: WindowTab[] = [
+  {
+    label: trans('About Zettlr'),
+    controls: 'tab-general',
+    id: 'tab-general-control',
+    icon: 'info-standard'
   },
-  data: function () {
-    return {
-      currentTab: 0,
-      tabs: [
-        {
-          label: trans('dialog.about.title'),
-          controls: 'tab-general',
-          id: 'tab-general-control',
-          icon: 'info-standard'
-        },
-        {
-          label: trans('dialog.about.projects'),
-          controls: 'tab-projects',
-          id: 'tab-projects-control',
-          icon: 'applications'
-        },
-        {
-          label: trans('dialog.about.sponsors'),
-          controls: 'tab-sponsors',
-          id: 'tab-sponsors-control',
-          icon: 'star'
-        },
-        {
-          label: trans('dialog.about.contributors'),
-          controls: 'tab-contributors',
-          id: 'tab-contributors-control',
-          icon: 'users'
-        },
-        {
-          label: trans('dialog.about.license'),
-          controls: 'tab-license',
-          id: 'tab-license-control',
-          icon: 'cog'
-        },
-        {
-          label: 'SIL OFL',
-          controls: 'tab-font-license',
-          id: 'tab-font-license-control',
-          icon: 'font-size'
-        },
-        {
-          label: 'Debug Information',
-          controls: 'tab-debug',
-          id: 'tab-debug-control',
-          icon: 'dashboard'
-        }
-      ]
-    }
+  {
+    label: trans('Other projects'),
+    controls: 'tab-projects',
+    id: 'tab-projects-control',
+    icon: 'applications'
   },
-  computed: {
-    windowTitle: function (): string {
-      if (process.platform === 'darwin') {
-        return this.tabs[this.currentTab].label
-      } else {
-        return trans('dialog.about.title') + ' ' + (global as any).config.get('version')
-      }
-    }
+  {
+    label: trans('Sponsors'),
+    controls: 'tab-sponsors',
+    id: 'tab-sponsors-control',
+    icon: 'star'
+  },
+  {
+    label: trans('License'),
+    controls: 'tab-license',
+    id: 'tab-license-control',
+    icon: 'cog'
+  },
+  {
+    label: 'SIL OFL',
+    controls: 'tab-font-license',
+    id: 'tab-font-license-control',
+    icon: 'font-size'
+  },
+  {
+    label: 'Debug Information',
+    controls: 'tab-debug',
+    id: 'tab-debug-control',
+    icon: 'dashboard'
+  }
+]
+
+const windowTitle = computed(() => {
+  if (process.platform === 'darwin') {
+    return tabs[currentTab.value].label
+  } else {
+    return trans('About Zettlr') + ' ' + configStore.config.version
   }
 })
 </script>

@@ -1,21 +1,19 @@
 <template>
-  <div
-    id="menubar"
-    v-bind:style="{ top: marginTop }"
-  >
-    <span
-      v-for="(item, idx) in menu"
-      v-bind:key="idx"
-      class="top-level-item"
-      v-on:mousedown.stop.prevent="getSubmenu(item.id, $event.target)"
-      v-on:mouseenter.stop="maybeExchangeSubmenu(item.id, $event.target)"
+  <div id="menubar">
+    <img id="app-logo" src="../../img/image-preview.png" />
+    <div
+      v-for="(item, idx) in menu" v-bind:key="idx" class="top-level-item"
+      v-on:mousedown.stop.prevent="getSubmenu(item.id!, $event.target as HTMLElement)"
+      v-on:mouseenter.stop="maybeExchangeSubmenu(item.id!, $event.target as HTMLElement)"
     >
-      {{ item.label }}
-    </span>
+      <span>
+        {{ item.label }}
+      </span>
+    </div>
   </div>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -30,178 +28,156 @@
  * END HEADER
  */
 
+import showPopupMenu, { type AnyMenuItem, type SubmenuItem } from '@common/modules/window-register/application-menu-helper'
+import { ref, onBeforeMount } from 'vue'
+
 const ipcRenderer = window.ipc
 
-export default {
-  name: 'WindowMenubar',
-  props: {
-    marginTop: {
-      type: String,
-      default: '0px'
+const menu = ref<SubmenuItem[]>([])
+const currentSubmenu = ref<string | null>(null)
+const menuCloseCallback = ref<null | (() => void) | null>(null)
+
+// Can contain a target if a submenu is right now being requested
+const targetElement = ref<HTMLElement | null>(null)
+
+onBeforeMount(() => {
+  // Listen to messages from the menu provider
+  type MenuMessage = { command: 'application-menu', payload: SubmenuItem[] }
+  type SubmenuMessage = { command: 'application-submenu', payload: { id: string, submenu: SubmenuItem[] } }
+
+  ipcRenderer.on('menu-provider', (event, { command, payload }: MenuMessage | SubmenuMessage) => {
+    if (command === 'application-menu') {
+      menu.value = payload
+    } else if (command === 'application-submenu') {
+      showSubmenu(payload.submenu, payload.id)
     }
-  },
-  data: function () {
-    return {
-      menu: [],
-      currentSubMenu: null, // string|null = null
-      applicationMenu: null, // SubmenuItem[]|null = null
-      menuCloseCallback: null, // Function|null = null
-      targetElement: null // Can contain a target if a submenu is right now being requested
+  })
+
+  // Send an initial request
+  ipcRenderer.send('menu-provider', { command: 'get-application-menu' })
+
+  // Also make sure to reset the internal state if necessary
+  window.addEventListener('mousedown', (_event) => {
+    // The closing will be handled automatically by the menu handler
+    if (menuCloseCallback.value !== null) {
+      menuCloseCallback.value = null
+      currentSubmenu.value = null
     }
-  },
-  computed: {
-  },
-  created: function () {
-    // Listen to messages from the menu provider
-    ipcRenderer.on('menu-provider', (event, message) => {
-      const { command } = message
+  })
+})
 
-      if (command === 'application-menu') {
-        const { payload } = message
-        this.menu = payload
-      } else if (command === 'application-submenu') {
-        const { payload } = message
-        this.showSubmenu(payload.submenu, payload.id)
-      }
-    })
+function getSubmenu (menuID: string, target: HTMLElement): void {
+  targetElement.value = target
+  ipcRenderer.send('menu-provider', {
+    command: 'get-application-submenu',
+    payload: menuID
+  })
+}
 
-    // Send an initial request
-    ipcRenderer.send('menu-provider', { command: 'get-application-menu' })
-
-    // Also make sure to reset the internal state if necessary
-    window.addEventListener('mousedown', (event) => {
-      // The closing will be handled automatically by the menu handler
-      if (this.menuCloseCallback !== null) {
-        this.menuCloseCallback = null
-        this.currentSubMenu = null
-      }
-    })
-  },
-  methods: {
-    getSubmenu: function (menuID, targetElement) {
-      this.targetElement = targetElement
-      ipcRenderer.send('menu-provider', {
-        command: 'get-application-submenu',
-        payload: menuID
-      })
-    },
-    maybeExchangeSubmenu: function (menuID, targetElement) {
-      if (this.currentSubMenu === null) {
-        return
-      }
-
-      if (this.currentSubMenu !== menuID) {
-        this.getSubmenu(menuID, targetElement)
-      }
-    },
-    /**
-     * Displays a submenu of a top-level menu item
-     *
-     * @param   {MenuItem[]}  items     The items in serialized form
-     * @param   {string}      attachTo  The MenuItem.id of the item to attach to
-     */
-    showSubmenu: function (items, attachTo) {
-      if (this.targetElement === null) {
-        return console.error('Cannot show application menu: Target item has not been found.')
-      }
-
-      const rect = this.targetElement.getBoundingClientRect()
-      if (rect === undefined) {
-        return console.error('Cannot show application menu: Target has not been found!')
-      }
-
-      // Reset the application menu if shown
-      if (this.menuCloseCallback !== null) {
-        this.menuCloseCallback()
-        this.menuCloseCallback = null
-      }
-
-      if (this.currentSubMenu === attachTo) {
-        // Emulate a toggle by not showing the same submenu again
-        this.currentSubMenu = null
-        return
-      }
-
-      // Display a new menu
-      const point = { x: rect.left, y: rect.top + rect.height }
-      this.menuCloseCallback = global.menuProvider.show(point, items, (clickedID) => {
-        // Trigger a click on the "real" menu item in the back
-        ipcRenderer.send('menu-provider', {
-          command: 'click-menu-item',
-          payload: clickedID
-        })
-
-        // Reset the menu state, since the callback indicates the menu is now
-        // closed.
-        this.menuCloseCallback = null
-        this.currentSubMenu = null
-      })
-
-      // Save the original ID for easy access
-      this.currentSubMenu = attachTo
-      this.targetElement = null // Reset
-    }
+function maybeExchangeSubmenu (menuID: string, targetElement: HTMLElement): void {
+  if (currentSubmenu.value === null) {
+    return
   }
+
+  if (currentSubmenu.value !== menuID) {
+    getSubmenu(menuID, targetElement)
+  }
+}
+
+/**
+ * Displays a submenu of a top-level menu item
+ *
+ * @param   {AnyMenuItem[]}  items     The items in serialized form
+ * @param   {string}      attachTo  The MenuItem.id of the item to attach to
+ */
+function showSubmenu (items: AnyMenuItem[], attachTo: string): void {
+  if (targetElement.value === null) {
+    return console.error('Cannot show application menu: Target item has not been found.')
+  }
+
+  const rect = targetElement.value.getBoundingClientRect()
+  if (rect === undefined) {
+    return console.error('Cannot show application menu: Target has not been found!')
+  }
+
+  // Reset the application menu if shown
+  if (menuCloseCallback.value !== null) {
+    menuCloseCallback.value()
+    menuCloseCallback.value = null
+  }
+
+  if (currentSubmenu.value === attachTo) {
+    // Emulate a toggle by not showing the same submenu again
+    currentSubmenu.value = null
+    return
+  }
+
+  // Display a new menu
+  const point = { x: rect.left, y: rect.top + rect.height }
+  menuCloseCallback.value = showPopupMenu(point, items, (clickedID) => {
+    // Trigger a click on the "real" menu item in the back
+    ipcRenderer.send('menu-provider', {
+      command: 'click-menu-item',
+      payload: clickedID
+    })
+
+    // Reset the menu state, since the callback indicates the menu is now
+    // closed.
+    menuCloseCallback.value = null
+    currentSubmenu.value = null
+  })
+
+  // Save the original ID for easy access
+  currentSubmenu.value = attachTo
+  targetElement.value = null // Reset
 }
 </script>
 
-<style lang="less">
-// Styles for the menubar (for Windows and Linux)
+<style lang="css" scoped>
 #menubar {
-  position: absolute;
-  top: 0;
-  height: 31px;
+  height: env(titlebar-area-height, 30px);
+  line-height: env(titlebar-area-height, 30px);
   width: 100%;
-  // Use the system font with a somewhat smaller font-size
+  background-color: var(--grey-0);
+  color: var(--grey-6);
+  /* Use the system font with a somewhat smaller font-size */
   font-family: inherit;
   font-size: 12px;
-  padding-left: 30px;
-  // Use the Zettlr logo as fixed background to enable branding in the menubar
-  background-image: url("../../img/image-preview.png");
-  background-position: left center;
-  background-repeat: no-repeat;
-  background-size: contain;
+  display: flex;
+  justify-content: left;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  padding-left: env(titlebar-area-x, 0px);
+  padding-right: calc(100% - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100%));
 
-  // If the menubar is shown, this indicates there's no title bar, hence we
-  // need the menubar to be draggable.
+  /* If the menubar is shown, this indicates there's no title bar, hence we
+  need the menubar to be draggable. */
   -webkit-app-region: drag;
 
-  span.top-level-item {
-    display: inline-block;
-    padding: 3px;
-    height: 31px;
-    line-height: 31px;
+  img#app-logo {
+    height: 18px;
+    margin-left: 8px;
+    width: auto;
+  }
+
+  div.top-level-item {
     padding: 0 10px;
-    // Don't drag the top-level menubar items
+    height: 100%;
+    display: flex;
+    align-items: center;
+    border-radius: 4px;
+    /* Don't drag the top-level menubar items */
     -webkit-app-region: no-drag;
-  }
-}
 
-body.win32 {
-  #menubar {
-    background-color: var(--system-accent-color, --c-primary);
-    color: var(--system-accent-color-contrast);
-
-    span.top-level-item:hover {
-      // Since we can't be sure which colour the menu bar will have, simply add a transparent overlay
-      background-color: rgba(0, 0, 0, .3);
+    &:hover {
+      background-color: rgba(0, 0, 0, .2);
     }
   }
 }
 
-body.linux {
-  #menubar {
-    background-color: rgb(180, 180, 180);
-    color: rgb(30, 30, 30);
-
-    span.top-level-item:hover {
-      background-color: rgba(0, 0, 0, .3);
-    }
-  }
-
-  &.dark #menubar {
-    background-color: rgb(30, 30, 30);
-    color: rgb(235, 235, 235);
-  }
+body.dark #menubar {
+  background-color: var(--grey-6);
+  color: var(--grey-0);
 }
 </style>

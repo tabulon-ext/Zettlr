@@ -1,3 +1,3528 @@
+# Upcoming
+
+## GUI and Functionality
+
+- **Feature**: The context menus for links and images now also feature various
+  items that may be useful for formatting aspects of the link/image descriptions
+  (#6417).
+- **Feature**: Make the "find next" and "find previous" commands of the editor
+  search configurable. Previously, both `Mod-g` and `F3` would move to the next
+  search result, but after implementing custom shortcuts, these two commands
+  were left unconfigurable and hard-coded to `Mod-g`. These are now configurable
+  so that you can change the default keybinding of `Mod-g` to `F3` if you wish
+  (#6575).
+- **Change**: The styles and layouts of various UI components have been
+  adjusted. The following components should now look mostly the same across all
+  operating systems:
+    - Toolbar
+    - File Tree
+    - Sidebar
+- **Change**: The file tree styling has been adjusted. It now looks mostly the
+  same across all operating systems.
+- Fixed a misaligned size distribution between the file manager, editor view,
+  and sidebar. Now, when double-clicking the dividers between these three
+  components, they will resize so that both sidebars take up 20% of the window
+  width, as opposed to a distribution of 20% for the file manager and ca. 15%
+  for the sidebar. This way, both sidebars of the main window are visually
+  equally sized.
+- Fixed a bug where Zettlr would *never* load attachments from your main
+  database if that database was in `BibTeX` or `BibLaTeX` format, as a small
+  logical error made the relevant code for retrieving attachments never find the
+  database in memory and thus would always fall back to attempting to contact
+  Zotero, which would, logically, fail for JabRef users (#6619).
+- Library loading on boot is now asynchronous, also we register a
+  long-running task during database loads to visualize especially the loading of
+  large library files.
+- Fixed a bug that prevented Mermaid diagrams from rendering due to an
+  underlying bug in the new API (#6625).
+- Fixed an issue that would cause full-text searches to start even as the input
+  field was still composing non-latin text (#6597; #6604).
+- Removed the `.md` extension from the default new filename pattern in the
+  Advanced Preferences menu. This pattern is used as the filename, so the
+  extension is unnecessary. Previously, creating a new file with the default
+  pattern would result in the `.md` extension being added twice to markdown
+  files or added incorrectly to non-markdown files. This only impacts new
+  installations of Zettlr. Existing users will have to update the pattern
+  manually (#6638).
+
+## Under the Hood
+
+- Update Electron to `v44.9.3`.
+- Update the `gettext-parser` to `v10`.
+- Added error-handling code in case titlebar overlays cannot be set for windows
+  (see #6417).
+- Exchanged `biblatex-csl-converter` with `bibliojson`.
+- Refactor the splash screen to silence an error caused by a benign race
+  condition during the boot sequence.
+- Pin the AppImage toolset in Electron builder to use a more modern one which
+  depends on fuse3 instead of the depcecated fuse2 library. This change must be
+  reverted once Electron builder is updated to v27 (#6632).
+
+# 4.9.0
+
+## Deprecation: macOS 12 and Ubuntu 17.04 no longer supported
+
+This release updates Electron, Zettlr's underlying application framework, to
+version 44. This means that Zettlr will no longer run on macOS 12 or Ubuntu
+17.04 or earlier. If you run such a system, please consider updating your
+computer to continue using Zettlr.
+
+## GUI and Functionality
+
+- **Feature**: Zettlr now correctly renders images that have been defined using
+  the reference-style variant. So instead of only rendering images in the form
+  `![alt text](url)`, it can now also render reference style images in the form
+  `![alt text][reference]`, with the reference being defined elsewhere (#663).
+- Fixed an issue where a URL in an image caption would be improperly treated as
+  the image source (#6594).
+- Fixed an issue where toggling a task mark would scroll the viewport back to
+  the cursor position. Now, the viewport does not scroll when a task mark is
+  toggled, though the cursor position is retained (#6603).
+- Fixed an issue that would cause jumping of the editor content upon externally
+  modifying a file (#6531; #6543).
+- Fixed an issue that caused excessive "failed to check for updates" errors
+  (#6574).
+- Fixed an issue preventing files with non-lowercase extensions from showing up
+  and being correctly treated by Zettlr (#6613).
+- Fixed a bug that would cause the statusbars of split views visible on top of
+  distraction-free views when using a split-view layout (#6581).
+- The Table Editor now uses the wrapper element's height instead of just the
+  table element's. This might further improve issues with the editor jumping
+  around as large tables and documents with many tables are edited (#5732).
+- Fixed a startup crash when a workspace contains an Electron `.asar` archive
+  (#6551).
+- Fixed an issue where the menubar controls would overlap the window controls on
+  Linux (#6633)
+
+## Under the Hood
+
+- Update Electron to `v44.9.1`. This drops macOS 12 and Ubuntu 17.04.
+  Furthermore, this includes a mitigation for the vulnerable eMudhra
+  certificates (see GitHub Advisory `GHSA-jr5w-w6x2-84p9`).
+- Update Pandoc to `v3.12.1`. This changes how admonitions/alerts are rendered
+  and may require updates to your custom template CSS for HTML exports.
+- Upgrade Mermaid to `v12.1.0`.
+- Centralized update check logic.
+- Fully switched the update provider from the outdated `got` dependency to both
+  pure `fetch` (where necessary) or `ky` (where convenient).
+- Move the link preview generation to `ky`.
+- Fully remove all dependencies on `got`, and remove the module entirely.
+- Ensure VS Code uses the workspace's TypeScript version instead of the built-in
+  one to avoid issues where the linter sees different issues than VS Code.
+
+# 4.8.0
+
+## Admonitions
+
+After more than six years in the making, we are proud to announce admonitions as
+a new feature for Zettlr. The app now supports the more and more common syntax
+that GitHub and other Markdown editors already support, using Blockquotes with a
+custom header. You can create `note`s, `tip`s, `warning`s, `important` blocks,
+and `caution` blocks like so:
+
+```markdown
+> [!note] This is the note's title
+> This is the content of the note.
+```
+
+The title after the keyword is optional, and you can use both uppercase keywords
+and lowercase keywords.
+
+Zettlr comes with a built-in renderer so that you can immediately see what the
+admonitions might look like upon export (note that the final styling depends on
+the export option chosen and support for this type of element). The renderer can
+be enabled or disabled exactly like the existing renderers.
+
+When you "copy" a selection that contains an admonition using the "with style"
+option, Zettlr will transform the admonition correctly, but whether the
+admonition retains its styles depend on the application into which you paste
+this code.
+
+Note that admonition support upon exporting requires the `alerts` extension. You
+can enable it manually in your export profile configuration, or enforce support
+(where available) via the export settings.
+
+## Deprecation Note: Dropping Support for OS Versions in Next Release
+
+This is the last Zettlr release shipping with Electron version 43. The next
+release will switch to Electrion version 44, which drops support for the
+following operating systems:
+
+* Ubuntu 17.04 or earlier
+* macOS 12 (Monterey)
+
+Please make sure to update your operating system before the next version of
+Zettlr ships if you are affected by this change.
+
+## GUI and Functionality
+
+- **Feature**: Admonitions are here! Zettlr now supports a broad range of
+  admonitions (sometimes also referred to as alerts or callouts). You can use
+  admonitions to emphasize certain content in your documents using Blockquote
+  syntax with a special header (see PR. #6497 for details). This closes a long-
+  standing feature request (#532). Some notes:
+  * Admonitions come with support of five keywords: `note` (gray), `tip`
+    (green), `warning` (yellow), `important` (purple), and `caution` (red).
+  * Zettlr supports custom titles for admonitions (full compatibility with other
+    popular Markdown editors).
+  * The app ships with a renderer for admonitions that you can turn on and off
+    just like any other renderer.
+  * Note that, to make admonitions survive exports, you will need to enable the
+    `alerts`-extension of Pandoc in the `reader` of the profile in question.
+  * Zettlr will use similar HTML-syntax when you copy text with admonitions
+    using the "Copy with Styles" option, but whether this survives pasting into
+    other applications depends on support on their side.
+- **Feature**: You can now choose whether you want to automatically accept the
+  selected autocomplete suggestion when pressing `Tab`, `Enter`, both, or
+  disable automatic accepting entirely (#6485).
+- **Change**: The old `mark` setting has been replaced by a new settings
+  category that enforces support for several Pandoc extensions during export. If
+  you have disabled the `mark` support in the import/export settings previously,
+  you will need to disable this again after updating Zettlr.
+- **Change**: Fixed a fundamental issue with the full-text search that would
+  turn **AND**-searches implicitly into **OR** searches. If you relied on how
+  the full-text search actually worked, and not how it was described in the
+  documentation, you will now have to explicitly add pipe-operators (`|`)
+  between your search terms to mark them as alternatives. By default, the full-
+  text search now requires all operators separated by a space to be present in a
+  file to be considered a valid result (#6517).
+- **New Translation**: Zettlr now ships with an additional language:
+  Azerbaijani. See PR #6548 for details.
+- Improved the custom title bar style on both Linux (if native appearance is
+  turned off) and Windows. Here's what changed:
+  1. The logo is now an actual element rather than background, and has been
+     scaled down to better fit into the menu bar.
+  2. The window controls now use a transparent background and a light/dark color
+     depending on which theme the app is currently using.
+  3. Improved the spacing around the menu items to make them less menacing.
+- Fixed the about window's debug tab: No more horizontal scrolling, and the
+  `PATH`-variable is properly split into segments.
+- Fixed some alignment issues with custom symbols on toolbar buttons; now the
+  buttons should all be properly centered.
+- Fixed an issue where in some places instead of showing you a proper file
+  title, the app would default to only showing you the filename, and neither a
+  heading or YAML title, if you specified it as such. Now, the logic has been
+  centralized and everywhere you expect a proper file title it should now show
+  you one (see #6471).
+- Set default mode for LanguageTool to `standard` for new installations. If you
+  prefer `picky`, simply set it accordingly.
+- Fixed an issue where configuration changes emitted from the onboarding dialog
+  for new users were one-way-only, with no way to undo the changes. This has now
+  been changed: the buttons accurately reflect the actual configuration state,
+  and pressing the buttons multiple times toggles between the two sets of
+  suggested settings (#6429).
+- Update translations:
+  - `ko-KO` (#6478).
+  - `de-DE`.
+  - `ja-JP` (#6480).
+  - `ca-ES` (#6530).
+  - `pt-BR` (#6537).
+  - `tr-TR` (#6533).
+  - `az-AZ` (#6548).
+- Renamed "Remove line breaks" to "Remove excess line breaks."
+- Fixed an issue in full text search where multiple search terms separated by
+  whitespace would use an 'OR' operator rather than the documented 'AND'
+  operator. Now, search terms separated by whitespace correctly use the 'AND'
+  operator (#6517).
+- Fixed an issue that prevented inserting a new row when the cursor is placed in
+  the final row of the table (#6512; #6513).
+- Fixed an issue where literal curly braces at the end of a table cell (or a
+  line) were swallowed as invalid Pandoc attributes, causing the text inside
+  them to disappear (#6563).
+
+## Under the Hood
+
+- Update Electron to `v43.6.0`.
+- Zettlr now checks whether a Pandoc extension it seeks to enable during export
+  is actually supported by the reader to avoid errors when, e.g., using the
+  `commonmark` reader which does not support the `mark` extension.
+- Updates to the translations are now deterministic (#6538). This causes minimal
+  diffs between iterations and should also reduce the risks for merge conflicts
+  between open translation PRs and POT update PRs.
+
+# 4.7.0
+
+## GUI and Functionality
+
+- **Feature**: Custom shortcuts are here. You can now customize many of the
+  available shortcuts and assign them to your likings. This also includes the
+  various text transformations that we introduced in version 3.6.0 so that you
+  can bind frequently used ones to a handy shortcut. The feature comes with all
+  the standards of custom shortcuts, including an interactive shortcut recording
+  that visualizes which keys will become part of the shortcuts as you type them,
+  a reset function to restore the default, and an automated conflict detection
+  that lets you know whether a shortcut you have provided might conflict with
+  another one.
+- **Feature**: You can now set the editor theme to use a light or dark
+  appearance independent of the app appearance (#5851).
+- **Feature**: You can now click a long-running-task notification for both
+  projects and single files to directly open the corresponding file.
+- **Feature**: Popovers can now be closed with a quick press on `Escape`.
+- **Change**: Changed the layout of the project properties. Now the custom
+  templates and CSL section are placed on the general tab, while the export
+  profile picker has moved to its own tab. This gives the custom options more
+  visibility and provides a better grouping of the options.
+- Fixed a regression from 4.6.1 where the full-text search would not search any
+  open standalone files (#6387).
+- Fixed an issue on macOS where opening a file from Finder with no open main
+  window would not automatically open one (#6391).
+- Update translations:
+  - `ja-JP` (#6390).
+  - `de-DE` (#6449).
+  - `tr-TR` (#6450).
+- Fix snippets syntax and improve nested support (#6389).
+- Fixed a bug that would cause Zettlr to replace a magic quote with a regular
+  quote instead of deleting the text if some text was selected that happened to
+  be adjacent to a magic quote.
+- The Table of Contents title in the sidebar is now properly reset (#6397).
+- Improve toolbar styling (#6418).
+- Fixed a linter warning for footnotes without spaces (#6434).
+- Updated French translations (#6430).
+- Fixed a regression that causes windows to briefly flash white when macOS
+  vibrancy is disabled and the app is set to dark mode (#6438).
+- Fixed `s`/`S` shortcuts in vim mode (#6445).
+- Fixed a regression from the previous version that caused timeouts when using a
+  local LanguageTool integration with very long texts after the switch from
+  `got` to `ky`.
+- Fixed an issue where empty Pandoc spans would crash the span renderer (#6448).
+- Fixed an issue where the label of the "open automatically" checkbox in the
+  export popover would not be clickable.
+- Fixed a visual glitch when running multiple full-text searches in between
+  showing and hiding the search pane (#6454).
+- Fixed bold and italic styling (#6472).
+- Fix an issue leading to buggy interactions between snippets and the typewriter
+  mode (#6473).
+
+## Under the Hood
+
+- Update Pandoc to `v3.10.1`.
+- Update Electron to `v43.1.0`.
+- Zettlr now additionally trusts system certificates when making network
+  connections, meaning that custom TLS certificates can be used, e.g., for
+  corporate firewalls (#6006; #5271).
+- Added a new Vue directive, `v-focus` that can be applied to any element in a
+  Vue component and that will focus the element as soon as it is mounted to the
+  DOM.
+- Removed deprecated path check for the app.
+- Improve performance of the editor (#6388).
+- Improved handling of invalid dates in the statistics provider (#6433).
+- Remove superfluous search logging (#6401).
+- Refactor `posInNode` utility to `nodeAtPos` and align documentation with
+  behavior (#6399).
+- Update various (incl. transitive) dependencies.
+- Remove fix for an old `archiver` dependency.
+- Refactor TextPack export to match new `archiver` API.
+- Remove remnant `.tern-project` file.
+
+# 4.6.0
+
+## GUI and Functionality
+
+- **Feature**: Allow changing the trigger character for snippet (and emoji)
+  autocomplete. Until now, this was hard-coded to `:` (which is still the
+  default). However, since that interferes with the way French speakers use the
+  colon character (`Pour exemple : cette.`), we now allow different trigger
+  characters, relieving the colon where necessary. Currently supported are `/`
+  and `%` as alternatives (#5185; #6325).
+- **Feature**: The tutorial is now also available in Portuguese for new users
+  (#6373).
+- **Feature**: The "Remove line breaks" transformation in the editor is now also
+  available via the keyboard shortcut `Cmd/Ctrl-Alt-J` (#5913).
+- **Change**: This release brings many improvements to the full text search
+  (#6339):
+  - The full text search was completely rewritten to improve performance by 50%
+    to 100%.
+  - The autocompletes for both previous searches and the restrict-to-folder
+    functionalities have been drastically improved and work reliably (#5686).
+  - Ability to switch between case-insensitive and case-sensitive searches.
+  - Improvements in the presentation and layout of search results.
+- **Change**: On macOS, the default setting for window vibrancy is now off. This
+  makes the file manager opaque, but improves visual design with the new sticky
+  folder headers.
+- Add Elixir syntax highlighting for code blocks; identifiers: `elixir`, `ex`,
+  or `exs` (#6368).
+- Fixed missing click handlers for clicking links in tables (#4694).
+- Fixed an issue that would sometimes open the same link twice.
+- The file manager now uses tabular digits for displaying numbers in filenames.
+- Fixed an issue where code elements had a background color that overlaid the
+  selection (#6328).
+- Fixed a wrong font selection for comments.
+- Fixed strikethrough-elements no longer being stricken-through (#6330).
+- Fixed triple-clicks within tables to select entire table cells (#6344; #6100).
+- Add "Curl quotes" text transform to convert straight quotes to curly (smart)
+  quotes, the inverse of the existing "Straighten quotes" transform (#6259).
+- The main window's title now includes the current active file's title. This
+  allows automation that depends on the window title (#6283).
+- The table of contents now clears out when the last file of the editor is
+  closed (#6251).
+- Allow `Escape` to close the search panel regardless of whether it is currently
+  focused (#2970).
+- Moved the editor "Indentation," "Font size," and "Autocomplete" settings into
+  their own preferences groups.
+- The menubar on Windows is no longer styled using the system's accent color to
+  reduce potential distractions for users.
+- Update Brazilian (`pt-BR`) translations (#6348).
+- Fixed TableEditor swap rows/columns commands on macOS. Until now, they were
+  mapped to `Ctrl+Shift+Arrow`, which was misaligned with the main keymap.
+- Fixed an issue in the TableEditor where adding new rows could increase the
+  amount of surrounding whitespace in the newly inserted rows (#6369).
+- Fixed the alignment command for the TableEditor which previously would clear
+  out the entire column, if the column had no alignment set.
+- Fixed a regression from the previous version that disabled the references list
+  CSS (#6380).
+- Fixed a regression from the previous version that could lead to visual
+  artifacts in the thin and expanded file manager modes when switching files
+  (#6385).
+- Fixed a long-standing bug that would cause the application to go out of sync
+  with the operating system's UI theme on macOS when the application is set to
+  "follow the OS" in terms of UI theme, but the user has manually changed the
+  theme to light or dark. In that case, the app would lose synchronization with
+  the macOS theme source, causing the auto-switching mechanism to fail when the
+  operating system's UI theme changes.
+
+## Under the Hood
+
+- Upgrade Electron to `v42.3.3`.
+- Upgrade Pandoc to `v3.10`.
+- Pinned a transitive dependency of electron forge, `yauzl` to fix a bug on
+  newer Node versions (context: https://github.com/electron/forge/issues/4277).
+- Migrate the `openAttachment` utility from `got` to `ky`.
+- Migrate the LanguageTool API utility from `got` to `ky`.
+- Enforce proper comment styling.
+- The `StartupWMClass` has been switched back to lowercase, since apparently the
+  build step has correctly reverted the binary name to lowercase on Linux.
+- Handle symbolic links in chokidar watcher explicitly.
+
+# 4.5.0
+
+## GUI and Functionality
+
+- **Feature**: Long-running background tasks are now visually indicated with a
+  toolbar icon. This allows users to check on longer-running tasks such as
+  project exports or the re-indexing of new workspaces and observe the progress
+  as it happens.
+- Add HCL/Terraform fenced code block support (#6302).
+- Fixed Mermaid Chart labels not showing up (#6313).
+- Fixed icons in the statusbar not working.
+- Update Spanish (`es-ES`) translations (#6320).
+
+## Under the Hood
+
+- Updated Electron to `v41.3.0`.
+- Update `vue-virtual-scroller` to `v3.0.0`.
+- Fixed an issue where the config provider would not emit the old version
+  correctly (context: #6311).
+- **Breaking**: Refactored the editor themes (#6229). Now styling the app with
+  Custom CSS is easier and should work more straight forward, since there are
+  many CSS variables that you can peruse to adjust groups of elements at once.
+  **Note that this change might break your Custom CSS**. Make sure to check
+  anything after setup, and adjust it according to your liking.
+- Centralized DOMPurify functionality and default configuration in a new utility
+  function, that also allows icons using `cds-icon`.
+- Switch from `ts-node` to `tsx` for running unit tests.
+- Explicitly declare Zettlr as a `CommonJS` project.
+- Change the `Object.create(null)` contraption to hold BibTeX attachments to a
+  regular object to simplify the structure and unit tests.
+
+# 4.4.0
+
+## GUI and Functionality
+
+- **Feature**: The app now remembers if the file manager was open or closed
+  across restarts and applies this setting on each start (#3679).
+- **Feature**: The names of open folders in the file manager tree will now
+  remain sticked to the top of the file manager as you scroll through its list
+  of children. This is especially helpful in the "combined" file manager mode
+  with folders containing many files and subfolders (such as reading notes or
+  Zettelkasten folders).
+- Add strikethrough to the Markdown AST parser (#6263).
+- Fixed Markdown-to-HTML output to generate more valid HTML. This makes
+  comparisons with DOM-inserted HTML deterministic and should reduce the amount
+  of updates especially for complex widgets such as tables by a lot.
+- Reduced amount of image updates in the editor. This may increase performance
+  especially for long documents with many images.
+- Fixed containing directories not uncollapsing when a containing file was made
+  active.
+- Upon switching between files, the file tree now consistently scrolls to the
+  affected file, making working with larger workspaces easier.
+- The scroll-behavior for scrolling files into view has changed from instant to
+  `smooth`.
+- Fixed a small bug that could throw off switching between different file
+  manager modes.
+- Fixed the cursor scroll margin again. This means that, after years of it not
+  working, as you type there will now be some margin towards the top or bottom
+  of the editor window, preventing the cursor to "stick" to the edge of the
+  editor.
+- Update `pt-PT` translations (#6282).
+- Fixed an issue that would lead to unexpected navigation behavior across the
+  file manager (#4329).
+- Fixed an issue where the file list would follow slightly different filtering
+  rules than the file tree due to different function implementations.
+- Harmonized font usage to System fonts across the app (#5125).
+- Improve Mermaid chart error reporting (#6291).
+
+## Under the Hood
+
+- Switch from `sanitize-html` to `DOMPurify` for HTML sanitization, since the
+  latter has much, much less issues with various types of exotic XML-type tags
+  such as MathML.
+- Updated Electron to `v41.1.1`.
+- Security: Disallow any and all inline-JavaScript across all browser windows.
+- Security: Enforce loading remote resources using HTTPS.
+- Security: Generously spread HTML sanitization across the application. The
+  following changes have been made:
+  - Moved HTML sanitization to the edge (directly to the injection sinks).
+  - Removed HTML sanitization from the translation helpers. The reason is that
+    DOMPurify does not work out of the box in the main process, so we also
+    removed the sanitization from the renderer-translation helper. However, this
+    is safe since we do not insert the translations into HTML injection sinks.
+    Also, this way we can apply DOM sanitization at the edge, and no longer at
+    the beginning of the chain.
+  - This also means that HTML is no longer allowed in translation strings.
+  - Armed the `v-html`-rule again, and removed all `v-html` directives, and in
+    instances where this was not possible, explicitly disable this with a
+    reason.
+
+# 4.3.1
+
+## GUI and Functionality
+
+- Update `pt-PT` translations (#6262).
+- Translated the tutorial to Japanese (#6260).
+
+## Under the Hood
+
+- Escape file and directory paths passed to `runShellCommand`.
+- Update Pandoc to `v3.9.0.2`.
+- Updated some dependencies.
+- Removed duplicate FSAL descriptor fetching.
+- Improved resiliency of the descriptor fetching; now if a renderer requests an
+  array of paths, the FSAL does not fail. Instead, it simply omits those
+  descriptors from the return array and logs an error (context: #6272).
+
+# 4.3.0
+
+## GUI and Functionality
+
+- **Feature**: Added a citation tooltip. When hovering over a citation cluster
+  in your documents with your mouse, this will generate a small bibliography of
+  just the items contained in the citation cluster and display it using the
+  tooltip. This allows you to quickly check which item you cited exactly.
+- **Feature**: The Custom CSS editor now offers autocomplete assistance (#6226).
+- **Feature**: Added dedicated `math` code block syntax highlighting to add
+  MathTeX to files without rendering (#6226).
+- **Feature**: You can now close all standalone/root files as well as all
+  workspaces from a new file manager context menu that opens via right-click
+  onto the section headers or with a click on the corresponding button. In
+  addition, you can collapse all folders with a simple click (#6209).
+- **Feature**: You can now manually change the sorting of your workspaces. By
+  default, Zettlr automatically sorts your workspaces by name. However,
+  sometimes you may wish to change the ordering. To do so, use the new file
+  manager context menu and select "Sort workspaces…". This will open a popover
+  that allows you to change the workspace ordering using drag and drop. As soon
+  as you overwrite the sort order manually, this will disable automatic sorting
+  from here on. Newly opened workspaces will simply be appended at the end of
+  the list of open workspaces. To re-enable automatic sorting of your
+  workspaces, use the new setting in the file manager preferences, or click the
+  corresponding button in the sort popover.
+- **Feature**: You can now assign custom accent colors to folders across your
+  workspaces to make them easier identifiable. This aids the existing custom
+  icons that you can already use to differentiate folders. You can assign one of
+  seven built-in colors to every directory: blue, purple, rose, red, orange,
+  yellow, and green. For friends of Custom CSS: These are specified as CSS
+  variables so that you can adjust them if you wish. The pattern is:
+  `--accent-<color>`.
+- Fixed potential crashes when standalone/root files or workspaces have been
+  removed while Zettlr was closed (#6223). Recognizes PR #6225 by @SergioChan
+  who started this effort. Previously, the re-indexing process when Zettlr boots
+  would not check for the existence of open paths, causing crashes.
+- Show citation menu when right-clicking on a non-rendered citation (#6213).
+- Updated `ja-JP` translations (#6227; #6230; #6249).
+- Updated `zh-CN` translations (#6243).
+- Fixed an issue with improper HTML sanitization in the file preview tooltip,
+  which would escape unusual HTML (such as KaTeX equations) instead of allowing
+  it (#6221).
+- Fixed an issue that might prevent the correct app icon to show up for the
+  AppImage release of Zettlr.
+- Re-enabled the broken System Verilog syntax highlighting. However, the code
+  highlighting uses the Verilog parser, since no dedicated System Verilog parser
+  is available, so there may be inconsistencies in highlighting.
+- Allow more emojis in tags (#6202).
+- Fix crashes when directories aren't accessible by the app (#6172).
+- Improve autocorrect handling. Now, users can undo an unwanted replacement
+  (`Ctrl/Cmd+Z`) without losing the inserted space or new line (#6210).
+- Made the app more resilient in light of missing workspaces or root files. Now,
+  crashes on startup due to missing standalone files or workspaces should be
+  much less frequent and the app should be more stable.
+- Fixed a regression that would overlay the default menu on top of the citation
+  menu on non-macOS clients, rendering it unusable (#6213).
+- Fixed an issue that would make code blocks exceed the size of the preview
+  window in some instances.
+- Fix footnote preview styling in footnote tooltips.
+- Fixed custom export profiles not working during project exports (#6235).
+- Fixed text color of disabled menu items on Linux and Windows.
+- Fixed "Find in file" menu item (#6234).
+- Improve file name extension handling (#6194).
+
+## Under the Hood
+
+- The `md2html` utility function now has a new flag, `sanitizeHTML` that you can
+  use to make the function properly sanitize potentially harmful HTML in
+  situations where HTML shall be inserted into the DOM without endangering the
+  display of special elements such as equations.
+- The app now sanitizes HTML in more cases where it is inserted into the DOM.
+  This preemptively prevents attacks using malicious HTML in the table of
+  contents, the print window, and footnote tooltip rendering. Note that this
+  does not apply when copying Markdown as HTML, since in this case we expect the
+  user wishes to retain every bit of HTML (also, in that case, they usually have
+  seen the code, making possible attacks unlikely).
+- Updated various code syntax highlighting parsers from the legacy mode to the
+  corresponding dedicated parsers (#6226).
+- Since `JSON.stringify` is sensitive to object insertion order, we switched the
+  detection logic whether directory settings are all on default to
+  `assert.deepStrictEqual`. This means that we now compare the values of the
+  properties instead of their ordering.
+- Harden the TableEditor by properly sanitizing possibly unsafe HTML using the
+  new `sanitizeHTML` option on the `nodeToHTML` function (via `md2html`).
+
+# 4.2.1
+
+## Fixed Pandoc Extension Parsing
+
+If you ever used [Pandoc extensions](https://pandoc.org/MANUAL.html#extensions)
+with Zettlr, you may have wondered why they sometimes appeared not to work.
+After a report by a user, we have found out that Zettlr never actually parsed
+these correctly. We decided to make this a bit more visible in the changelog
+since your exports may have been broken without you realizing. This way you can
+verify any of your exports.
+
+## GUI and Functionality
+
+- Fix indenting and tab insertion behavior (#6196).
+- Fix Zettlr not correctly parsing Pandoc extensions (#6212).
+- Improved error handling when opening PDF attachments.
+- Make Zettlr more resilient when CSL JSON library files are malformed.
+
+## Under the Hood
+
+- Add unit tests for `parseReaderWriter` utility function.
+- Upgrade Electron to `v40.8.0`.
+- Upgrade Pandoc to `v3.9.0`.
+- Upgrade ESLint to `v10.0.3`.
+- Properly parse and check the returned results from the BetterBibTex JSON RPC
+  API when querying PDF attachments.
+- Zettlr no longer assumes CSL JSON files are well-formed. Instead, each item is
+  checked for the presence of required keys, and is skipped if there is an
+  issue. This ensures library files can also be loaded partially.
+
+# 4.2.0
+
+## GUI and Functionality
+
+- **Feature**: New utilities for working with native Pandoc Divs and spans
+  (#6032):
+  - Added a new setting to switch between native highlights (`==mark==`) and
+    using spans for this (`[mark]{.highlight}`).
+  - Added a new toolbar button to insert divs and spans.
+  - Added new buttons to the formatting toolbar to insert underlined,
+    strikethrough, and highlighted spans.
+- **Feature**: Blockquotes are now rendered with a vertical bar (#6122).
+- **Feature**: Users can now opt to display hidden files and folders
+  ("dot-files") in the sidebar and/or filemanager in the settings (#6041).
+- **Feature**: Custom Pandoc `div`s are now pre-rendered depending on the
+  corresponding setting (#6121). This allows you to preview any custom styling
+  you have applied to them within the editor.
+- **Feature**: You can now move document tabs to the start or end of the
+  tablist from the context menu (#6130).
+- Added an error message that explains to users that an import profile is needed
+  if they attempt to import a supported file with no profile.
+- Updated `pt-BR` translation (#6154).
+- Updated `ja-JP` translation (#6198).
+- Updated `de-DE` translation.
+- Improved the tag recognition to allow for more varied Unicode characters in
+  tags than previously, including umlauts, accents, or emojis (#6155).
+- Improved pilcrow styling when whitespace rendering is on (#6152).
+- Fixed the frontmatter linter never reporting any errors with the YAML (#6167).
+- Fixed an issue where images that spanned multiple lines could cause the editor
+  to crash when image rendering was active.
+- Fixed the tab key not respecting the "Indent using tabs instead of spaces"
+  setting. Additionally, pressing tab now always inserts spaces in YAML
+  frontmatter blocks to maintain valid YAML syntax (#6168).
+- Fix: The formatting toolbar no longer grabs focus from the editor.
+- Fix: Added a configuration setting to allow restoring the pre-4.0 behavior of
+  not showing the underlying Markdown syntax of pre-rendered elements when the
+  cursor merely touches the element. If the setting "Show Markdown syntax when
+  the cursor is adjacent or inside an element" is enabled (the default), the
+  editor will show the Markdown syntax both when the cursor is within the
+  element or if it is adjacent to it.
+- Fixed the table editor "Delete table" context menu item not working as
+  intended (#6088).
+- Updated MathJax URL in various HTML-based templates to v4 (#6148). Note that
+  Zettlr will not overwrite existing templates, so to benefit from this, you
+  will have to factory-reset the affected templates.
+- Fixed a bug starting with the Zotero 8 update in Zettlr would no longer
+  provide autocomplete for some users. The reason is that some of the items in
+  the exported CSL JSON files would lack an ID property (that is, the citekey),
+  while Zettlr assumed each item would have an ID.
+
+## Under the Hood
+
+- Increased config retrieval speed in the renderers (#6140). This can speed up
+  some UI interactions.
+
+# 4.1.1
+
+## GUI and Functionality
+
+- Fix a bug where the preferences window would allow arbitrary tab sizes. Now,
+  tab sizes are bound between 2 and 10 (see #6131).
+- Fixed links not registering clicks when they are pre-rendered within table
+  cells of the TableEditor (#4557).
+- Fix application of custom tag classes.
+- Fixed a bug that would not correctly apply the `code` class to segments of
+  code in some circumstances (primarily when adding YAML front matters or
+  comments).
+- Fix syntax highlighting in code blocks, frontmatters, etc. Now, Zettlr assigns
+  more default-colors of the solarized code syntax theme. In addition, regular
+  text is now more readable, especially in light mode.
+- Fixes and improvements to the toolbar styling; simplify CSS rules.
+- Made toolbar icons slightly larger.
+- Update `ja-JP` translation (#6132).
+- Fixed a bug that would not accept custom height constraints via Pandoc
+  attributes for images if the maximum image height was set to 100% in the
+  settings.
+- Fixed "Learn more" link on the citation page in the onboarding window (#6138).
+- Fixed an issue that would make the file search crash on Windows, if a
+  workspace was located at a volume root (#6142).
+- Fixed an issue that would cause Mermaid graphs to still be pre-rendered in
+  "raw" mode (#6141).
+- Fixed a bug that would cause code files (JSON/YAML/TeX) to be formatted
+  weirdly if Zettlr opens with one of these files on startup, due to relevant
+  CSS never being loaded in this case.
+- Improved PDF viewer interaction (#6153).
+
+## Under the Hood
+
+- Update dependencies:
+  - Electron: `v40.0`
+  - Forge: `7.11.1`
+  - Builder: `26.5.0`
+- The FSAL Cache now consistently utilizes asynchronous filesystem operations
+  (#5994).
+- Refactor Zettelkasten link and tag parsing (#5997).
+- Number controls in forms now allow for providing `min` and `max` values.
+- Increased strictness of the `@typescript-eslint/no-explicit-any` rule from
+  "off" (no checking) to "warn" to slowly start migrating away from any
+  remaining `any` uses in the wild.
+- FSAL Improvements:
+  - Removed a lot of dead code in the FSAL.
+  - Moved the save functionality away from the `FSAL*`-submodules, and divided
+    the responsibility between the `DocumentsProvider` and the `FSAL` module.
+
+# 4.1.0
+
+## Read Before Updating
+
+In this version, we perform a long-planned configuration change that affects
+your loaded workspaces and files. Before installing this update, please take
+note of which workspaces and files you have open, in case they are being closed
+through this update. (No data will be actually deleted, but this helps you avoid
+having to search for the folders.)
+
+In addition, it is crucial to remember that once you update to this version,
+**there is no turning back**. If you decide to downgrade to a previous version,
+your files and workspaces *will* be closed, and you will have to re-open them
+afterwards.
+
+## GUI and Functionality
+
+- **Feature**: You can now collapse YAML frontmatters and Pandoc divs (#6115).
+- **Feature**: Zettlr now remembers folded regions as long as the window remains
+  open, even when you close a document (#6115).
+- **Change**: Due to a configuration change, downgrading Zettlr (which we
+  generally discourage) after updating to this version will lead to your
+  workspaces being closed.
+- Fixed XCode Command Line Tools setup dialog on macOS (#5428).
+- Fixed an issue that prevented opening Markdown files with tables that include
+  Pandoc attribute strings when the TableEditor was enabled (#6110).
+- Fixed footnote tooltip rendering (#6107).
+- Fixed an issue preventing Zettlr from starting if the stats file contained
+  errors (#6127).
+- Improved link target extraction logic when following links (#6098).
+- Performance improvements when following links (#6072).
+- Hide reference link labels when previewing Markdown links (#6097).
+- Improved performance on generating the preview-bibliography in the sidebar by
+  collecting citation keys from the document only in the main process (#6068).
+- Improved math parsing to fix certain cases (#6030).
+- Relaxed filename restrictions for loading custom dictionaries (#6126).
+- Improved Pandoc div parsing (#6120).
+- Update `de-DE` translation (#6081).
+- Update `ja-JP` translation (#6086).
+
+## Under the Hood
+
+- Moved the `openPaths` property. The `openPaths` property was a simple array
+  holding all currently loaded root files and workspaces intermingled. This
+  setting stems from the time when Zettlr could not load arbitrary files, and
+  mixing files and folders is generally a bad practice. This property has now
+  been moved into the new namespace `app` in the settings, and divided into
+  `openFiles` and `openWorkspaces`. This will make a few future checks and
+  features easier to implement, as the separation into files and folders is made
+  explicit and not left to the OS. This will allow us to better clean up the
+  property (personal note: I've seen a colleague's config file which was full of
+  non-existing file paths, and I didn't like that). In rare situations, this
+  change may close all your workspaces, in which case you would have to re-open
+  them.
+- New utility function `disambiguateFile` that can be used to retrieve a
+  time-based non-existing path that can be used for backup purposes.
+- Added a new environment variable, `ZETTLR_DISABLE_UPDATE_CHECK`. If that
+  variable is detected during build, this will hard-disable update checks in the
+  application. This can be used by package maintainers to ensure update checks
+  from within the app are disabled, and Zettlr instead must be updated via the
+  package manager. Please **note** that the build script will only check for the
+  *presence* of the variable, not its contents. To ensure you are building with
+  updates enabled, you need to ensure the variable is not set, for example by
+  running `unset ZETTLR_DISABLE_UPDATE_CHECK` before commencing the build. For
+  more information, please see issue #6075. When this environment variable is
+  present during build, the resulting binary will exhibit this behavior:
+  - The "Check for updates" menu item will not be present.
+  - The "Updates" and "Beta releases" preferences will not be present. Instead,
+    the updates-setting will be replaced by an informative message informing
+    that updates have been disabled for the app.
+  - The update check itself in the update provider will never run.
+  - Zettlr will include an environment variable indicating whether updates are
+    disabled (`1`) or enabled (`0`) that is visible within the debug panel.
+- Added a new environment variable, `BUNDLE_PANDOC`. If this variable is set to
+  a value of `0`, this will prevent the build script from downloading and
+  bundling Pandoc during the build stage. This can be used by package
+  maintainers to reduce the package size when there is a better way to provide
+  Pandoc (e.g., by listing it as a dependency for Zettlr). This also means that
+  the build environment does not require the dependencies that are specifically
+  for the download script.
+- fix: The Pandoc Attribute parser does not throw an error on malformed
+  attribute strings anymore, and instead just returns an empty record (#6110).
+
+# 4.0.0
+
+## Full TableEditor Rewrite
+
+This release contains a full rewrite of the TableEditor. The old implementation
+of the TableEditor had many bugs and inconveniences that made working with
+Markdown tables barely less cumbersome than having to deal with raw Markdown
+tables. Users criticized volatile data handling and experienced frequent data
+loss. This is why we redesigned the TableEditor from the ground up. With this
+release, we are finally able to give the new experience to you.
+
+The most important improvement is that now data loss should be a thing of the
+past. The new TableEditor makes full use of the available features of the editor
+to keep the data as safe as possible. But we didn't want to stop there. Because
+the TableEditor hadn't received a face lift in years, we asked ourselves what
+else the TableEditor was missing.
+
+From a user perspective, we have kept the design of the TableEditor as close to
+the former UX as possible, while also fixing a few oddities. Specifically, the
+buttons of the TableEditor have been fully redesigned to be more minimalist.
+Also gone is the infamous "Save" button that was not able to help prevent data
+loss. The new TableEditor now features proper syntax highlighting so that you
+can more easily verify that you are authoring proper Markdown. In addition, the
+new TableEditor is now faster, more memory efficient, and it should be simpler
+to fill entire tables with data.
+
+Lastly, one big improvement of the new TableEditor is that you don't have to use
+it to be more efficient in authoring tables. Specifically, we decided to
+implement all functionality fully keyboard-oriented. This means that for any
+modification you may want to make there is now a shortcut. Adding and removing
+rows and columns; clearing data from rows, columns, or the entire table;
+aligning column text left, right, or center; swapping rows or columns; etc.
+Anything is now possible either with the new built-in context menu, or a quick
+keyboard shortcut.
+
+There is only one thing we stopped to support: grid tables. Given that their
+structure can be much more difficult to parse we wanted to err on the side of
+caution. However, some keyboard shortcuts such as navigating between cells will
+still work with grid tables. Since users will most of the time only edit simple
+tables, we believe this to be an acceptable compromise — while not completely
+ruling out supporting grid tables, especially since Pandoc has started heavily
+investing in an improvement of their grid table support.
+
+In any case, we hope that the new TableEditor will finally fix the issues you
+experienced over the past years — and we would like to apologize that it took us
+so long to fix all of these issues at once!
+
+## Changes to the snippet `$FILENAME` variable
+
+In this update, we have implemented a change in which the `$FILENAME` variable
+no longer includes the filename extension. This means that, while `$FILENAME`
+has in the past resolved to `my-file.md`, it will now only include `my-file`.
+
+If you rely on the `$FILENAME`-variable in any of your snippets, please make
+sure to update it by adding the variable `$EXTENSION` behind it. In other
+words, everywhere you need only the filename without its extension, you can
+keep `$FILENAME`, but wherever you need both the file name and its file
+extension, please use `$FILENAME$EXTENSION`. (The latter variable includes
+the leading period of the extension, so do not write `$FILENAME.$EXTENSION`.)
+
+## Image Viewer and PDF Viewer
+
+This update brings with it a great new feature for Zettlr: A built-in image
+viewer and PDF viewer. Once you have selected in the settings that you wish to
+open images or PDF files in Zettlr instead of the default behavior to open it
+externally, Zettlr will open them in editor panes just like the editors. You can
+rearrange them just like you can other files, and you have some options
+available to inspect the files.
+
+For images, the viewer offers various options to zoom and fit the images so that
+you can view every detail of them while having other files open side-by-side.
+In addition, the image viewer offers four background modes to accommodate
+transparency and difficult-to-view colors in the images better: transparent
+(the default), a black background, white background, and a translucent
+checkerboard background.
+
+The PDF viewer likewise allows you to preview PDF files using Chromium's built-
+in PDF viewer that you may already know if you have opened PDF files in Google
+Chrome or Edge. Due to restrictions in how this works, however, you will have to
+manually "enable" such a viewer before being able to scroll it by clicking into
+it. Whether an iframe is interactive is indicated by a small border around the
+iframe.
+
+Note that both image and PDF viewers are just that: viewers. As Zettlr is a text
+app, we do not plan on implementing any ways of editing images or PDF files. To
+annotate your PDF files, please continue using your existing workflow.
+
+## New Citation Parser
+
+This release of Zettlr ships with a fully rewritten citation parser. We have
+decided to do so because the existing citation parser was very coarse. It would
+only detect and indicate entire citation nodes, but it could not distinguish
+between the various parts of citations (such as prefix, citekey, and suffix). In
+addition, there were quite many inefficiencies in how Zettlr would parse
+citations.
+
+The new citation parser aims at fixing these issues. It now mounts individual
+nodes into the document for all individual parts of a citation node.
+Specifically, it now detects formatting characters, the `@`-sign, the suppress-
+author-flag (a hyphen preceding the `@`-sign), prefix, suffix, and the locator
+individually. This not just makes styling individual citation parts possible,
+but also makes all processing within Zettlr more efficient and faster.
+Especially in documents with a lot of citations, you should be able to observe a
+performance improvement.
+
+Lastly, we took this opportunity to align the parser more with how Pandoc
+Citeproc processes citations. Most notably, this includes relaxing some
+requirements such as having to place commas after the citekey, and support for
+curly brackets, which allows you more flexibility in defining citekeys (e.g.,
+`@{AuthorYear}`) and locators (e.g., `{pp. 23-24, 66-69}`),
+
+If you prefer to style Zettlr using Custom CSS, you can now style the individual
+parts of your citations, using the following CSS classes:
+
+* `cm-citation`: The entire citation node
+* `cm-citation-mark`: Formatting characters (`{}[];`) except the `@`-sign and
+  the suppress-author-flag
+* `cm-citation-prefix`: The citation prefix
+* `cm-citation-suppress-author-flag`: The suppress-author-flag
+* `cm-citation-at-sign`: The `@`-sign in front of your citekey
+* `cm-citation-citekey`: The actual cite key (sans surrounding curly brackets)
+* `cm-citation-locator`: The locator after your citekey
+* `cm-citation-suffix`: The citation suffix
+
+## Modified Zettelkasten Link Workflow
+
+With this update, we have updated the Zettelkasten link insertion workflow. This
+is due to the new capabilities of Zettlr to understand link labels. To do so, we
+have removed the previous settings "Link with filename only" and "When linking
+files, add the document name …". Instead, we have added two new settings,
+"Always use the file title as label for internal links" and "Use the file ID as
+link target if possible."
+
+The new workflow applies when you autocomplete a filename, and works as follows:
+
+1. If "Use the file ID" is enabled, Zettlr will use a file's ID, if the file has
+   one, and fall back to the filename only where no ID is available. If it is
+   disabled, Zettlr will always use the filename to generate internal Wikilinks.
+2. If "Always use the file title" is enabled, Zettlr will add the file's title
+   (YAML frontmatter title; first heading level 1; filename) as the link label.
+   If it is disabled, Zettlr will never add a link label automatically.
+
+## Footnote Workflow Improvements
+
+This update improves the footnote handling workflow a lot. Until now, Zettlr was
+only able to properly insert new footnotes. However, the footnote deletion
+process still required you to manually delete both the footnote label and its
+accompanying reference.
+
+We have now implemented a few new functions that help you manage footnotes.
+First, when you delete text by pressing `Backspace`, and you reach a footnote
+label, Zettlr will now select the entire footnote label instead of deleting the
+closing bracket of the label. When you press `Backspace` a second time, it will
+remove the entire label at once. This gives you both a visual indication that
+you are about to delete a footnote, and make it easier (since it requires you to
+press `Backspace` only twice, instead of at least four times).
+
+Note that some functionality does not apply to footnote labels that contain text
+other than numbers.
+
+## Rewritten FSAL
+
+A change that is more subtle to note is a full rewrite of the File System
+Abstraction Layer (FSAL). For more technical details, see the "Under the hood"
+section below. For you, what should change is that Zettlr should now feel
+snappier once it's booted up. We have cleaned up *a lot* of code under he hood
+which will make changes to any file appear much faster across the app. In
+addition, Zettlr should now have no issues detecting dozens of file changes in
+quick succession; something that has not worked perfectly in the past.
+
+## Lua Filters Interface
+
+This version exposes the Lua filters directly to you. The assets manager now has
+a new tab that allows you to create, modify, and delete existing Lua filters
+that Zettlr provides to Pandoc during exports. You can use them to modify your
+exported files before Pandoc converts them to your export target. This is useful
+to change certain syntax elements which Pandoc does not natively support. One
+very common example for this is to add a Mermaid filter to Pandoc which
+automatically converts any code block with Mermaid syntax into a rendered
+diagram upon export.
+
+Any filter present here will be run during every export. We recommend that you
+design any filter toggle-able via a YAML frontmatter. To see how, refer to the
+built-in protected filters (see below). Zettlr does not guarantee the order in
+which these filters are run.
+
+Note that there will be two filters already present when you first open the tab.
+Those filters have been part of Zettlr for a very long time already. These are
+used to remove or change Zettelkasten links and tags in your files during
+export. These two filters are marked as "protected" like the built-in defaults
+files.
+
+> A small bit of trivia: The preference settings that you can change which
+> allow you to direct Zettlr to alter links and tags accordingly effectively
+> only set a specific YAML frontmatter property in your file before it is
+> exported. These filters check for this property and behave accordingly.
+
+## Horizontal Rules are now Rendered
+
+Even though we do not recommend using the Custom CSS feature to modify the app's
+geometry, we know that quite a few of our users have been using the Custom CSS
+feature to make horizontal rules (`***`) appear as actual horizontal rules. This
+is a PSA that you should remove your custom styles when updating to this
+release. This version will start rendering horizontal rules as actual elements
+that you can target directly (it's a simple `<hr>` element), and this means that
+there is a chance that any Custom CSS that has mimicked a horizontal rule
+element may interfere, or even break the main editor.
+
+## GUI and Functionality
+
+- **Feature**: Full TableEditor Rewrite. The new TableEditor keeps most
+  functionality of the previous version, with the exception of more safeguards
+  against data loss, and more ergonomic usage.
+- **Feature**: Image and PDF previews. Zettlr has now two dedicated viewers that
+  allow users to open common image types and PDF files right from within the app
+  for preview purposes (#5501).
+- **Feature**: Fully rewritten citation parser (#5902).
+- **Feature**: Full-text (aka. global) search runs can now be cancelled via a
+  dedicated button. You can now also trigger a new search while another search
+  is already running.
+- **Feature**: Individual global search results can now be copied to the
+  clipboard (#2070).
+- **Feature**: The file manager can now show and display other file types as
+  opposed to having those only in the sidebar. Images and PDF files can be
+  opened directly in Zettlr, while other files will be opened using the system
+  default application. You can use the appropriate section in the advanced
+  settings to customize this. By default, none of the new file types will be
+  displayed in the file manager (#5501).
+- **Feature**: Zettlr now provides a Liquid Glass icon for macOS 26.
+- **Feature**: A new option has been added to allow a simple switching between a
+  raw Markdown syntax mode and a preview mode ("WYSIWYG"), both in the settings
+  and in the statusbar. Clicking it will toggle Markdown files between a pure
+  syntax view, and a mode in which those items which you have selected will be
+  pre-rendered/previewed (#4514).
+- **Feature**: Zettlr now ships with a brand-new onboarding wizard that helps
+  new users tweak some central settings immediately without having to scour the
+  preferences.
+- **Feature**: macOS users with an Apple Silicon chip can now access Writing
+  Tools from context menus.
+- **Feature**: Allow turning off the behavior of Zettlr to automatically open
+  files upon successful export (#5609).
+- **Feature**: Added a simple setting that forcefully enables Pandoc's `mark`-
+  extension when exporting from Markdown if that is not already enabled. This
+  ensures that `==highlighted==` spans are properly considered in any output
+  format.
+- **Feature**: Improved the calendar view in the statistics window to better
+  convey the numbers. It now features a gradient heatmap, only considers the
+  numbers from the visible year, and logs the numbers to spread out the
+  distribution across the new, ten activity levels.
+- **Feature**: Improved the statistics chart to better help you contextualize
+  your writing flow. It now shows you your current word count for this week, and
+  compares it to this and last years's averages.
+- **Feature**: The LanguageTool integration is now more performant and allows
+  ignoring of certain rules (#5910). Whenever you ignore a rule, it shows up in
+  the spellchecking preferences section alongside some additional info. From
+  this section you can re-enable it by removing it from the list of ignored
+  rules.
+- **Feature**: "Hide heading characters" now properly hides the characters
+  instead of replacing them with another element, bringing Zettlr's renderer
+  closer to a true WYSIWYG experience. The heading level is now indicated to the
+  left side in its own gutter element.
+- **Feature**: You can now show line numbers in Markdown files via a new setting
+  (#5917).
+- **Feature**: Zettlr has now improved support for reference-style links. This
+  support extends to the link context-menu (which now supports handling links
+  from both link and link reference), the tooltips (which accurately show link
+  previews), rendering (which accounts for link labels), to any action (such as
+  copying or removing a link) (#5142).
+- **Feature**: Zettlr now supports loading BibLaTeX libraries as well (#460).
+- **Feature**: Zettlr now correctly displays crossref-style citations (#248).
+- **Feature**: You can now collapse and un-collapse the files and workspace
+  sections in the file manager. This can be helpful if you are working with both
+  a lot of individual files and workspaces. Your choice is remembered (#5916).
+- **Feature**: Extended the scope and application of vibrancy on macOS.
+- **Feature**: Working with footnotes is now more convenient than ever. Zettlr
+  now has an update listener that constantly scans the document for any rogue
+  footnotes and references (which are missing their corresponding reference or
+  footnote), and ensures that the numbering is always correct. This means that
+  you can delete a footnote, and be certain that Zettlr will have removed the
+  now-dangling reference, too. The same applies if you remove a reference that
+  you no longer need. Lastly, deleting footnotes becomes more convenient. Now,
+  if you delete characters and reach a footnote, Zettlr will first select the
+  entire footnote to visually indicate that you are about to delete a footnote,
+  then a second deletion will remove the entire footnote at once.
+- **Feature**: Fully hide both titlebar and toolbar if the setting "Hide
+  toolbar in distraction free" is on, the user has activated distraction free
+  and the window is in fullscreen. This means that, while Zettlr is not in
+  fullscreen, there will always be either a titlebar or toolbar to move the
+  window around, but in fullscreen, the editor can take up the entire window
+  area (#3999).
+- **Feature**: Zettlr now exposes the Lua filter directory to you. Now you can
+  add, remove, and modify both the built-in filters as well as your own, custom
+  ones.
+- **Feature**: The exporting workflow is now smoother. The export button will be
+  focused as soon as the export popover opens, meaning you can press `Enter` to
+  start the export using the current settings.
+- **Feature**: Misspelling suggestions from the LanguageTool linter will now be
+  treated equivalently to misspellings from the Hunspell linter, meaning you can
+  add those to the user dictionary from the context menu, and apply any of the
+  suggestions (if any) from there, too.
+- **Feature**: Zettlr now renders horizontal rules, too, when the preview
+  rendering mode is on.
+- **Feature**: Zettlr can now properly parse and pre-render native Pandoc divs
+  and spans. This includes the `#refs`-div as well as other elements, including
+  underlines or small caps (#6031).
+- **Change**: Zettlr now monitors your documents and will automatically remove
+  footnotes and references without the corresponding reference or footnote. If
+  you have any documents in which you have un-referenced footnotes, or
+  references that are currently unused, please make sure to change this before
+  updating.
+- **Change**: Snippets: The `$FILENAME` variable now does not contain the file
+  extension anymore. Users who also want the extension should update their
+  snippets to `$FILENAME$EXTENSION` (#4191).
+- **Change**: The word and character counters in the statusbar now always show
+  both counts.
+- **Change**: Removed the readability mode toggle from the toolbar. You can now
+  trigger the readability mode via the status bar.
+- **Change**: Modified the Zettelkasten link insertion workflow. The previous
+  settings "Link with filename only" and "When linking files, add the document
+  name …" have been removed. Instead, there are two new settings, "Always use
+  the file title as label for internal links" and "Use the file ID as link
+  target if possible." The first new setting will always insert the detected
+  file title (YAML frontmatter title; first heading level 1; filename) as the
+  link label. If disabled, Zettlr will always create links without labels. The
+  second setting controls whether Zettlr will always use filenames to link to
+  files, or use IDs where available.
+- **A11y**: Zettlr now respects if you choose to reduce transparency in system
+  settings and no longer add window vibrancy on macOS.
+- Snippets can now be nested (#5939).
+- You can now show an item in Finder/Explorer/file browser when right-clicking a
+  document tab (#5914).
+- Fixed inline math not rendering when transforming Markdown to HTML (e.g., in
+  footnotes).
+- The diagnostics info field in the statusbar now toggles the lint panel,
+  instead of only opening the panel (#5847).
+- Fixed WebP images not rendering from relative paths (#5181).
+- Fixed the behavior when clicking widgets (citations, etc.) to accurately
+  select only the widget's source text (#5682).
+- Update `it-IT` translations (#5831).
+- Update `da-DA` translations (#5868).
+- Update `de-DE` translations.
+- Added support for `nix` syntax highlighting (#5954).
+- Fixed incorrect cursor position after inserting IDs (#5846).
+- The toolbar word counter no longer wraps (#5774; #5881).
+- Fix context menu entry "Insert table" not working (#5835).
+- The keyboard shortcuts for snippets no longer require the field, thus
+  preventing errors in `EditorView`s that map the corresponding shortcuts but
+  don't have snippets installed.
+- The three-way-toggle for the file manager and global search does not wrap on
+  Windows anymore (#5876).
+- The toolbar can now scroll left and right if the main window is too narrow
+  (#5873; #5022).
+- Popovers (especially in the toolbar) will now properly close when clicking the
+  associated toolbar button a second time (#5870).
+- Style improvements: linter panel dark mode (#5882);  drop cursor (#5883);
+  export, pomodoro, and tags popover (#5895); spacing in file manager tree view
+  (#5891); global search (#5894).
+- Switched the icons for code and comments in the formatting toolbar (#5901).
+- The word counter now uses a proper segmenter that will make the word count
+  more accurate for languages that do not use spaces to separate words (#5898).
+- Fixed the tutorial pages not correctly opening on first start.
+- Improved the macOS tray icon display.
+- Single clicks on the tray icon now activate the app (#4267).
+- Fixed footnote placing edge cases.
+- Due to updates in Apple's Human Interface Guidelines, the main process now no
+  longer removes accelerators/keyboard shortcuts from the menus.
+- The recent documents provider now uses the OS API to return a list of recent
+  documents. The provider is only retained for Linux at this point.
+- Improved performance for documents with many and/or large tables (#5903).
+- Fixes print functionality by completely abandoning the `iframe` approach and
+  switching to the built-in Markdown-to-HTML parser.
+- Fixed the user dictionary not persisting to disk under certain conditions
+  (#5922).
+- The toolbar update button now includes a clearly visible label indicating that
+  an update is available, making it less likely to miss it.
+- Improved the styling and labelling of the additional attachment extensions
+  setting in the advanced settings
+- The citation context menu now shows rendered citations instead of the raw
+  citation keys, and utilizes macOS's `sublabel` feature to describe the context
+  menu items.
+- Changed default config settings for new installations:
+  - Dark mode is now preset to true if the OS reports that it uses dark colors.
+  - Vibrancy on macOS is now set to true only if the user does not prefer
+    reduced transparency.
+- Improved drag-and-drop behavior in the table of contents (#5871).
+- Improved the layout of the assets window (#5942).
+- Improved performance impact of references tab by only updating the
+  bibliography on save, not on every keystroke (#5518).
+- Fixed images with brackets in the filename from not showing up (#3825).
+- Switched the window controls on Windows computers to the native controls. This
+  will enable a set of additional OS-level functionality (such as hovering over
+  the maximize-button to show a split-screen menu).
+- Fixed a bug that would not assign the correct footnote body class to footnote
+  bodies. Now, footnotes will be rendered in a smaller font size and can be
+  styled as a block.
+- Made the dark editor background less black, and increase contrast of the dark
+  selection background for the Karl-Marx-Stadt theme.
+- Indentation preferences from the main settings now also apply to code editors
+  where applicable.
+- The emphasis renderer now also hides formatting characters for footnote
+  reference labels.
+- Images and links will now be detected more robustly (#5964).
+- Improved parsing footnotes (especially with multi-paragraph contents) (#5968).
+- Improved Markdown-to-HTML conversion (#5968).
+- Fixed image parsing for images with no ALT-text (#5963).
+- Horizontal scrolling in the "thin" file manager mode is no longer restricted
+  to macOS, and also available on Linux and Windows.
+- Fixed the config provider never announcing to the renderers when the user
+  added or removed a workspace/root file.
+- Fixed an issue where the sorting doesn't automatically re-apply (#5938;
+  #5184).
+- Fixed an issue where not all file-links have been reported to the file
+  autocomplete (#5920).
+- Fixed some issues with the file manager not properly reacting to changes in
+  the loaded files (#5784; #5773; #5594).
+- Fixed an issue with deleting files outside of loaded workspaces (#5345).
+- Increased the dropzone size for moving files around and splitting/merging the
+  various editor panes.
+- The Update provider does not show error boxes anymore if the update check
+  failed due to a timeout (#5944).
+- Links in headers are now properly accounted for (#5983).
+- Headers level 1 will now be rendered to plain text for the purpose of
+  displaying in various places (document tabs, file manager, etc.) (#5983).
+- Newly created defaults files will now be directly selected so that you can
+  directly start editing them.
+- Fixed the selected directory not uncollapsing upon boot (#5156).
+- Fixed the smooth cursor animation, which stopped working in Zettlr 3.0 due to
+  the switch from CodeMirror 5 to CodeMirror 6.
+- Zettlr won't attempt to check for updates anymore if the device is offline.
+- Improve performance by debouncing word counts (#5952).
+- Empty selectable lists now show a message visually indicating that the list is
+  empty.
+- The snippets view now indicates better if there is no selected snippet.
+- When adding either snippets or import/export profiles, you can now enter the
+  new name for these directly in the list instead of having to rename a random
+  file.
+- Popovers now have an improved arrow color for better visibility.
+- Fix wrong display in relative directory paths during global search.
+- Replace misleading folder icons (folder and open folder) with new icon choices
+  ("Home" and "Ban").
+- Fix a small bug that would throw an error if a user would specify the
+  `bibliography` key in a profile as a single string, instead of a list.
+- Replacing tags works now case-insensitive (replacing `#hello` with `#olleh`
+  now also replaces `#HeLlO`) (#6009).
+- Table header cells are now aligned left by default.
+- Increase icon sizes in file manager.
+- Fixed a bug that would inadvertently emit metadata for the PO-file if
+  translating an empty string.
+- Re-implemented linking to folders from within documents (#6023).
+- Fix wrong suggested directories in the global search (#6065).
+- Fixed recent documents on Linux or Windows not opening (#4825).
+- Improve the visual line indentation logic to make it more robust (#6045).
+- Fixed an issue where symbolic links (`ln -s`) in your workspaces would cause
+  severe crashes and prevent the app from loading (#5949).
+
+## Under the Hood
+
+- Update Electron to version `39.2.6`.
+- Update Pandoc to version `3.8.3`.
+- **Feature/Change**: Full rewrite of the File System Abstraction Layer (FSAL).
+  The rewrite has fully transformed the file abstraction logic to remove any
+  tree structures, and instead mostly treat all loaded files as a single, long
+  list of files and folders. Any type of tree structure is now purely visual and
+  left where it needs to be (that is, the file tree and file list components
+  that do show the files in a tree structure). In addition, we have implemented
+  a set of improvements that should make everything work much smoother; in no
+  particular order:
+  - Remove any tree data structures pertaining to the loaded files. This
+    includes the full removal of the `WorkspacesProvider`, whose job it
+    essentially only was to maintain those tree structures. We now treat files
+    as well as the change events emitted by the watchdog (to observe any remote
+    changes) as a flat stream of events.
+  - Rewrote the `WorkspaceStore` in the renderer to reflect this change, thus
+    reducing the store's size by a lot. The store now only maintains a big list
+    of loaded paths, as well as all descriptors in a `Map` structure.
+  - The events from the file watchers are now emitted directly from the FSAL;
+    there is no round trip through the WorkspaceProvider anymore.
+  - Notably, `DirDescriptor` structures no longer contain any reference to
+    children, since we do not read in any descriptors recursively anymore.
+    Instead, consumers of `DirDescriptor`s will now make a second roundtrip to
+    fetch any direct descendants of a directory. Recursion is now implicit in
+    the way the tree-like structures in the Vue components have been
+    implemented.
+  - Sorting has now been pushed to the edge in that the main process does no
+    longer concern itself with sorting. That only happens right where it's
+    needed from now on; that is: the file manager and the project properties.
+    This makes sorting more reactive to configuration changes (since it now
+    happens automagically due to Vue's reactivity instead of having to listen
+    for relevant events and not forget to manually do it in main), and
+    maintenance much easier.
+  - Removed the `root` property on descriptors, since this is not dependent on
+    the file system state and can easily be computed on demand.
+- Since CSS has become quite powerful, move all LESS-files to CSS.
+- Debounce the splash screen update frequency to at most 60fps to reduce the
+  load on the IPC pipe while the screen is shown.
+- Added new `curly` rule to ESLint, enforcing curly brackets for block-statement
+  declarations (`if`, `for`, `while`, etc.).
+- The `enabled` property of context menu items is now optional, and defaults to
+  `true`.
+- `EditorPane`s will no longer load all documents at the same time, and instead
+  reuse the existing `MarkdownEditor` component for a single document. This
+  greatly reduces memory consumption, especially for very full tab bars, since
+  only a single document will be actively rendered at any one time.
+- Moved the previously shared common types for the context menu in the renderer
+  into the correct module to colocate the code. The shared types have been a
+  remnant from a time before TypeScript supported the `type` keyword, and will
+  subsequently be removed.
+- Moved the `DirectedGraph` class from the link provider to the stats window.
+- Switched back from `electron-devtools-assembler` to
+  `electron-devtools-installer`; now the Vue.js devtools extension works again.
+- Style groups in form builder fields now support a label that will be rendered
+  atop of these groups.
+- Zettlr now records and remembers the binary's build date. This information is
+  shown in the debug info to help pinpoint from when a version is. In addition,
+  this information is now used to disambiguate nightly versions so that both the
+  FSAL cache will be cleared more regularly, and you get a visual indicator that
+  you did update your nightly release.
+- The AST parser now properly detects task lists, and the Markdown-to-HTML
+  converter appropriately handles them.
+- Improved list form controls. They now allow customizing the delete label and
+  provide a custom "No records" message.
+- The `rangeInSelection` utility function now accepts an optional parameter that
+  allows inclusion of adjacent selection ranges in calculating the result. This
+  allows, e.g., renderers to detect whether a selection touches a node-to-be-
+  rendered.
+- Added a loading spinner component that can be used to indicate that something
+  is loading.
+- Context menu items now can have an `action` property, which is a simple
+  function that will be called when the item is clicked. Those items do not have
+  to have an ID (which is now an optional property). Items with IDs and without
+  actions will still call the provided callback function.
+- The Markdown AST parser now also emits `labelFrom` and `labelTo`-properties
+  for footnote references for easy access to the reference label.
+- If loading a window fails due to whatever reason, the corresponding error will
+  now be shown to the user using an error dialog.
+- Aligned the math parser to the internal CodeMirror APIs (#5971).
+- Zettlr now declares nightly releases via the build flags instead of prerelease
+  (e.g., `4.0.0-beta+nightly` instead of `4.0.0-beta-nightly`), since the
+  previous way of declaring betas would make the internal semver check would
+  declare `4.0.0-beta-nightly` to be the same as `4.0.0-beta.1-nightly`.
+- Zettlr now properly offers updating to a newer prerelease versions if users
+  are on a nightly version (e.g., `beta` -> `beta.1`).
+- Log any error output from the Pandoc update script if the process failed
+  (#5864).
+- The window manager now emits fullscreen state change events to the main
+  windows. This allows Custom CSS and other parts of the state to subscribe to
+  whether the `body` has the `fullscreen` class and perform changes.
+- The Assets Provider now ensures that defaults and snippets always have the
+  correct filename extension as required.
+- Relocate the PopoverWrapper component to the common Vue directory for access
+  in other windows.
+- Popovers now allow their parent element to specify placement priorities.
+  Instead of always trying to place the popover first below, then right, then
+  above the element, and never to the left, the owner of a Popover can now
+  specify a set of priorities for placement. The `PopoverWrapper` will use the
+  first priority that can be fulfilled while respecting space constraints. The
+  default priorities reproduce the existing behavior (with the added ability to
+  use the left side if necessary).
+- Text fields now reliably receive focus where appropriate.
+- The `CodeEditor` component now supports Lua syntax.
+
+# 3.6.0
+
+## Text Transformations
+
+Zettlr now features a set of several text transformation commands in the editor.
+Using these commands, you can transform various pieces of text in the editor
+using several strategies aimed at working with both regular text (which you can,
+e.g., transform between sentence or title case) and corrupted text (from which
+you can remove control characters, unnecessary line breaks, and clean up
+quotation marks). In total, Zettlr now ships with 13 such transform commands,
+but many more are possible.
+
+To utilize these transformations, simply select the text you wish to transform,
+open the context menu on it, and select the corresponding transformation from
+the context menu.
+
+The available transforms as of now are:
+
+* `Zap gremlins`: Removes unwanted control characters (such as form feeds,
+  vertical tabs, and others), which sometimes end up in recognized PDF text.
+* `Strip duplicate spaces`: Removes any superfluous spaces.
+* `Italics to quotes`: Turns italic markers (e.g., `*text*`) into quotes
+  (`"text"`).
+* `Quotes to italics`: Turns quotation marks (e.g., `"text"`) into italic
+  markers (`*text*`).
+* `Remove line breaks`: Removes superfluous linebreaks while retaining any
+  paragraphs (separated by two consecutive linebreaks).
+* `Straighten quotes`: Turns smart, or "magic quotes" into regular quotes.
+* `Ensure double quotes`: Turns any type of quotation (which includes backticks,
+  since those sometimes appear in text copied from PDF files!) into regular
+  double quotes.
+* `Double quotes to single`: Turns any straight double quotes to single quotes.
+* `Single quotes to double`: Turns single quotes into double quotes.
+* `Emdash — Add spaces around`: Ensures that all em-dashes (`—`) in the text are
+  surrounded by spaces.
+* `Emdash — Remove spaces around`: Ensures that no em-dashes (`—`) in the text
+  are surrounded by spaces.
+* `To sentence case`: Turns the selected text to sentence case.
+* `To title case`: Turns The Selected Text To Title Case.
+
+## GUI and Functionality
+
+- **Feature**: Zettlr now has text transformations. With these, you can change
+  selected pieces of text using a quick access command menu (#5701). Special
+  thanks to @richdouglasevans for implementing this.
+- **Change**: Zettlr will no longer parse Markdown-like files that exceed ca.
+  10 MB in size. After some testing, we have determined that 10 MB seems to be
+  a balanced trade-off between parsing as many files as possible and preventing
+  the app to crash (especially on slower computers). Note that this only affects
+  the caching of certain pieces of metadata, such as title, heading level 1, and
+  ID. You will still be able to open and edit the file. For more context, see
+  issue #5801.
+- Fixed a bug that would prevent the creation of new directories via the
+  shortcut (#5769).
+- Fixed a bug that prevented retention of user-determined dark-mode setting on
+  platforms other than macOS during application restarts (#570).
+- Fixed the list of related files disappearing when switching sidebar tabs
+  (#5795).
+- Windows will now receive black as their background color on Windows and Linux
+  if dark mode is active, preventing white flicker during window opening before
+  the UI is ready (#5809).
+
+## Under the Hood
+
+- Bump Pandoc to version `3.7.0.2`.
+- Bump Electron to version `37.2.0`.
+- The primary app service container can now be retrieved using the factory
+  method `getAppServiceContainer`. This makes it possible to reduce a few
+  recursive dependencies on passing the service container down and will help
+  disentangle the main process services in the future.
+
+# 3.5.1
+
+## GUI and Functionality
+
+- Fixed a bug that would make using certain keys such as `Enter`, `Backspace`,
+  or quotes in code editors in the Assets Manager unusable (#5797).
+- Added Kazakh language (#5771).
+- Improve fenced code block language detection when using fenced code
+  attributes. Now, using the recommended Pandoc-style syntax for attribute
+  strings will correctly match the language in the info string to one of the
+  available identifiers.
+
+## Under the Hood
+
+(nothing here)
+
+# 3.5.0
+
+## GUI and Functionality
+
+- **New Feature**: Zettlr can now display a set of file types not only in the
+  sidebar's "Other files" tab, but also in the file manager, which in turn makes
+  it simpler to find and open relevant plots or PDF files for reference.
+- **New Feature**: Zettlr can now open images and PDF files right next to your
+  regular files, enabling you to preview pictures of, e.g., plots, or studies to
+  reference in your text; and double-check PDF files which you need to
+  reference.
+- **Feature**: The code editors (in the assets manager and elsewhere) now share
+  the same keymap as the main editor.
+- **Feature**: The image renderer now acknowledges and respects the presence of
+  a Pandoc link attributes string behind an image to scale images using custom
+  sizes (#1328).
+- **Change**: Removed some optional properties from the default profiles. If you
+  want to switch to the new defaults, delete those files from the assets manager
+  or rename your existing ones. Specifically, removed `top-level-division`,
+  whose meaning has changed which started to produce empty first pages during
+  Word exports (#5645).
+- Fixed a long-standing bug that would not clear the modification marker on both
+  file tabs (#5747) and the macOS window indicator (#4724) when a modified file
+  was closed without saving changes. Acknowledges PR #5747 which is superseded
+  by this change.
+- Added a keyboard shortcut for highlighting text: `Ctrl-Shift-H` (#4668).
+- The Mermaid diagram renderer is now more flexible. It now renders any Mermaid
+  diagram in any type of valid fenced code block with both allowed variations of
+  providing the info string: the plain `mermaid` and the Pandoc-attribute style
+  `{.mermaid}` class (#5734).
+- Fixed a keymap conflict that would cause `Enter` to not accept autocomplete
+  suggestions in some contexts such as Markdown syntax elements (#5646).
+- Improved the math, mermaid, image, and heading renderers so that they perform
+  additional checks before actually updating their respective rendered elements.
+  This should reduce the amount of flickering and unintentional scrolling
+  especially in longer documents with many of such elements.
+- Enable the CodeMirror folding keymap which lets you fold and unfold code, such
+  as headings, with keyboard shortcuts instead of using the arrows to the left
+  of the editor (#857). The shortcuts are: `Ctrl-Shift-[` (Windows/Linux) or
+  `Cmd-Alt-[` (macOS) for folding code, `Ctrl-Shift-]` or `Cmd-Alt-]` for
+  unfolding, `Ctrl-Alt-[` for folding all, and `Ctrl-Alt-]` for unfolding all.
+- Update `fr-FR` translation (#5738).
+- Update `cs-CZ` translation (#5775).
+
+## Under the Hood
+
+- Cache ESLint results to improve subsequent linter run speed (#5706).
+- Spawn shell when starting test GUI on Windows (#5685).
+- Markdown commands now check whether the provided target `EditorView` is parsed
+  using a Markdown parser before running.
+- Move all keymaps into a single `defaultKeymap`.
+- Assume `**` as default bold and `*` as default italic formatting for Markdown
+  commands if the config field is not present.
+- Added a `pandocLinkParser` for properly parsing pandoc link attribute strings.
+
+# 3.4.4
+
+## GUI and Functionality
+
+- **Change**: The exporter will now forcefully enable (= if it is not yet
+  enabled in the corresponding defaults file in the assets manager) the Pandoc
+  extension `wikilinks_title_after_pipe` or `wikilinks_title_before_pipe`
+  (depending on your settings) for every export from a supported (Markdown-
+  based) reader so that wikilinks/Zettelkasten links are properly parsed.
+- Identification of Pandoc readers and writers is now more stable, resulting in
+  clearer information across the app.
+- Fix the wikilink/Zettelkasten link Lua filter (#5605).
+- Zettlr now properly retrieves attachments also for items residing in group
+  libraries (#5647).
+- Updated translations:
+  -  German (`de-DE`)
+  -  French (`fr-FR`, #5688)
+  -  Taiwanese (`zh-TW`, #5656)
+
+## Under the Hood
+
+- Import Pandoc `reader`/`writer` parser from
+  `nathanlesage/pandoc-profile-generator`; retire `getPlainPandocReaderWriter`.
+- Move `pandoc-maps.ts` to common `pandoc-util` location.
+- Add additional classes to Table of Contents-headings in the sidebar to allow
+  targeting them with Custom CSS rules (`toc-heading-X` where `X` is the level).
+- Bump Electron to `v35.1.5`.
+- Bump Pandoc to `v3.6.4`
+- Bump Node.js across the CI to v22 (LTS).
+- Bump various other dependencies.
+- Upgrade the Ubuntu runners on the CI back to Ubuntu 22.04 LTS (#5172).
+
+# 3.4.3
+
+## An Important Note for Windows Users
+
+If you use Zettlr on Windows, there is a chance that you will be unable to
+install this update at first. This is because this update uses a different, new
+code signing certificate. There is a possibility that especially those of you
+who use a work computer on which you do not have administrative access, Windows
+will warn you of this update and prevent you from installing it. Based on
+initial communication, there are indications that this won't happen, but we
+wanted to let you know just in case.
+
+If you are unable to install this update, please make sure you update to at
+least version 3.4.2, which has been released last week. If you did not update to
+version 3.4.2, you can find do so
+[by clicking this link](https://github.com/Zettlr/Zettlr/releases/tag/v3.4.2).
+
+For more context, please [read our blog post](https://zettlr.com/post/zettlr-switches-code-sign-certificate-important-information-for-windows-users)
+that outlines our roadmap for the code signing certificate change, as well as
+[our Community Forum post](https://forum.zettlr.com/d/11-windows-code-signing-certificate-expires-what-users-need-to-know).
+If you have any questions, please don't hesitate to ask them
+[on the Community Forum](https://forum.zettlr.com/),
+[on Discord](https://go.zettlr.com/discord), or
+as a comment on our [BlueSky](https://bsky.app/profile/zettlr.com) or
+[Mastodon](https://fosstodon.org/@zettlr) accounts.
+
+**If you are able to install this update without issues, please let us know on our Discord channel, Community Forum, or on BlueSky or Mastodon.**
+
+## GUI and Functionality
+
+- **Breaking Change**: Switched Windows Code Signing Certificate to the Azure
+  one. For some time, you may be unable to install new Zettlr updates on your
+  computers. Please watch Zettlr's social media channels to get notified once we
+  have established that it works again.
+- Updated `zh_TW` translations (#5635).
+
+## Under the Hood
+
+- Bump Electron Builder to `v26.x.x`.
+- Switched Windows Code Signing workflow to Azure.
+
+# 3.4.2
+
+## An Important Note for Windows Users
+
+If you use Zettlr on Windows, we **urgently recommend you to install this update**.
+We will release a second update approximately one week after this update, which
+you may not be able to install on Windows right away due to Zettlr switching
+code signing certificates. Therefore, please absolutely make sure you install
+*this* update on your Windows computers.
+
+For more context, please [read our blog post](https://zettlr.com/post/zettlr-switches-code-sign-certificate-important-information-for-windows-users)
+that outlines our roadmap for the code signing certificate change, as well as
+[our Community Forum post](https://forum.zettlr.com/d/11-windows-code-signing-certificate-expires-what-users-need-to-know).
+If you have any questions, please don't hesitate to ask them
+[on the Community Forum](https://forum.zettlr.com/),
+[on Discord](https://go.zettlr.com/discord), or
+as a comment on our [BlueSky](https://bsky.app/profile/zettlr.com) or
+[Mastodon](https://fosstodon.org/@zettlr) accounts.
+
+## GUI and Functionality
+
+- **Breaking Change**: To better support the now recommended Wikilink syntax
+  with titles (`[[filename|Some title]]`), links that use the old and not
+  recommended syntax of adding titles from the time when Zettlr did not support
+  titles (`[Do not use this syntax]([[filename]])`) can no longer be
+  automatically replaced when renaming files (#5606).
+- Zettelkasten links with titles will now get properly replaced when renaming
+  files (#5606).
+- Fixed an issue that prevented the FSAL cache clearing from proceeding
+  appropriately.
+- Fix an issue that could lead to accidental overwriting of existing files in
+  some cases (#4940; also previously #5460 in Zettlr 3.3.0).
+- Fixed malformed rendering of plain links into HTML links (#5587).
+- Fixed a bad interaction between the default keymap and inserting an `Å`
+  character on macOS keyboards.
+- Fixed a bad interaction between the default keymap and inserting backticks on
+  macOS keyboard layouts without deadkeys (#5517).
+- Fixed file exports not working after renaming file (#5574).
+- Links won't be pre-rendered if their title is empty, as this would hide the
+  entire link syntax.
+- UI text has been improved throughout the app.
+
+## Under the Hood
+
+- Bump Pandoc to `v3.6.3`.
+- Bump chokidar to `v4.0.3`.
+- Bump Electron to `v34.2.0`.
+- Fixed the boot order of providers to ensure certain actions are taken before
+  providers access each others (primary case: the FSAL needs to be booted asap).
+- Promisify the cache clearing procedure.
+- Switched Apple Code Signing Certificate from expiring to new one.
+- Improve the linting experience by also including a TypeScript lint on top of
+  `vue-tsc`; in addition to stylistic and code-issues that are handled by ESLint
+  this will capture serious TypeScript issues as what happened during the patch
+  from 3.3.1 to 3.4.0 (see for context #5526); the new linting experience will
+  run by default, the old linter has been renamed from `lint` to `lint:code`,
+  and the new linter can be called individually using `lint:types`.
+- Rename `value` to `target` in Markdown AST `ZettelkastenLink` nodes to make it
+  more explicit that this field contains the value and never the title.
+- Add new property `targetRange` to Markdown AST `ZettelkastenLink` nodes to
+  allow for easy manipulation of link targets.
+
+# 3.4.1
+
+## GUI and Functionality
+
+- Fix heading extraction bug from 3.4.0 that made Zettlr crash on boot
+
+## Under the Hood
+
+(nothing here)
+
+# 3.4.0
+
+## GUI and Functionality
+
+- **New Feature**: For files that belong to a Zettlr project, the status bar now
+  additionally displays the total word or character count for all files across
+  the entire project, making it easy to check for a total limit (e.g., for a
+  journal submission); clicking on the item furthermore allows quick switching
+  between just those files that are part of the project
+- **New Feature**: The references sidebar tab now provides an approximate word
+  count, which is useful if some word count limit includes the bibliography; as
+  references aren't included in any other word count
+- Fix SVG image preview (#5496)
+- Fix network share image preview (#5495)
+- Fixed a bug where opened documents would not be closed once the last tab was
+  closed, retaining outdated file contents and making the file unresponsive to
+  external changes. Now files that do not have an open editor instance will be
+  closed appropriately
+- Fixed an issue where valid citations from within, e.g., comments, or other
+  non-valid places would end up in the list of references
+- Fixed a bug that would cause spellcheck suggestions to appear offset (#5494)
+- Checking task-list checkboxes now returns the focus back to the editor
+  immediately (#5246)
+- The statusbar's character/word counters now respect the character count
+  setting, meaning only the word or character count is shown, not both
+- Update translations:
+  - `uk-UA` (#5524)
+  - `de-DE`
+
+## Under the Hood
+
+- Update Pandoc to version `3.6`
+- Bump CodeMirror dependencies
+- Updates to the Markdown AST parser:
+  - Headings now have regular children
+  - Fixed a bug that would prevent text nodes from tables to be extracted
+  - Better detection of content "gaps"
+- Type system updates:
+  - Define a new shared type, `IPCAPI` that can be used to type the various IPC
+    APIs the service providers use across the app.
+  - Fully type IPC APIs: `AssetsProvider`, `DocumentAuthority`,
+    `DocumentManager`, `WindowProvider`, `CiteprocProvider`
+- Refactored the file type detection system; it is now simpler and easier to use
+  and can detect a variety of additional groups of files (previously only
+  Markdown and code files; now also images, PDFs, MS and Open Office files as
+  well as data files)
+- Select controls can be disabled now
+- Configuration updates in the renderer are now throttled to at most once every
+  second, preventing some fast updates from inducing lag
+- Refactored spellcheck linter
+
+# 3.3.1
+
+## GUI and Functionality
+
+- Fixed a serious bug that would prevent external files from being properly
+  handled on Windows; which included images, linked files, attachments, and
+  others (#5489)
+
+## Under the Hood
+
+(nothing here)
+
+# 3.3.0
+
+## Please Backup Your Writing Statistics
+
+This update includes a change in the writing statistics. While we extensively
+tested it, we would like you to backup your personal writing statistics. You can
+do so by going into Zettlr's data directory and simply make a copy of the file
+`stats.json` before launching the update. Your data directory is located at
+`C:\Users\<your username>\AppData\Roaming\Zettlr` (Windows),
+`/Users/<your username>/Library/Application support/Zettlr` (macOS), or
+`/home/<your username>/.config/Zettlr` (Linux). Then, check if your writing
+statistics still look proper. If not, please report this. Thanks!
+
+## GUI and Functionality
+
+- **New Feature**: Images in the "other files" tab do now contain a small
+  preview to help find the correct images
+- **New Feature**: Project settings can now override folder sorting, which means
+  that any project folder will from now on be sorted like so: (1) the files
+  within the folder in the order of the project settings; (2) all other files
+  according to the folder's regular sort settings. Note that this requires all
+  project files to reside in the top folder; included project files in
+  subfolders will not be affected
+- **New Feature**: The formatting toolbar can now be toggled on or off in the
+  preferences (#5207)
+- **New Feature**: Allow three-digit ordinal day of the year in IDs and
+  filenames (`%o`; #5424)
+- **Vim mode improvements**:
+  - Mapped Vim's write and quit commands to saving and closing actions (#4720,
+    #5463):
+    - `w`: Executes a save command for the current file
+    - `q`: Executes a close-file command for the current file
+    - `wq`: Attempts to save the current file and then close it
+    - Note that the `!` argument for supressing the "Omit unsaved changes"
+      dialog will not work, as the editor does not have the authority to tell
+      main to simply omit work (this is a security feature)
+  - Movement keys (`j`/`k`) now account for line wrapping for a smoother
+    navigation experience
+  - Default Shortcuts Restored: Unmapped `C-f`, `C-t`, and `C-c` in specific
+    modes to re-enable default editor behaviors like search and task item
+    shortcuts
+- Columns in the preferences window are now properly aligned (#5410)
+- Fix color scheme in readability mode (#5478)
+- Prevent initial startup update-check if the setting is unchecked (context:
+  https://github.com/Zettlr/Zettlr/commit/812899#r148519528)
+- Fix errors in, and update, German translation (`de-DE`)
+- Update Turkish translation (`tr-TR`) (#5461)
+- Fix "dancing list items" (#4602)
+- Zettlr finally counts and remembers character counts
+- The link preview and force-open workflows now expect internal/wiki-links that
+  link to headings within the file (`[[filename#heading-id]]`) and can handle
+  such links appropriately; the editors will not yet jump to the corresponding
+  headings, but this will improve compatibility with other editors who already
+  support this feature (#3727)
+- Fixed an edge case in rendering highlight marks
+- Fixed non-unique clipboard data paste filenames (#5449)
+- Fixed non-proportional images (especially very tall ones) overlaying other
+  text below them (#5465)
+- The background color of the active line in typewriter mode no longer blocks
+  the selection background (#5430)
+- Dropping or copy-pasting images from the file browser now inserts relative
+  links to them again instead of offering to save a copy (#5475)
+- Code files can now also be indented and unindented as expected using `Tab`
+- Changing capitalization of filenames on Windows, macOS, or other case-
+  insensitive file systems (e.g., testfile -> Testfile) no longer fails (#5460)
+- Fixed drag & drop behavior of open-able files onto the editor from the file
+  browser; dropping any supported file onto the app will now attempt to open it
+  (#5344)
+- Fixed export menu not remembering last selected custom commands (#5163)
+- Provide default reset-to-sizes for various split views
+
+## Under the Hood
+
+- Update Codemirror dependencies
+- Update Electron to `v33.2.0`
+- Update Electron forge to `v7.5.0`
+- Update various other dependencies
+- The `PersistentDataContainer` now uses proper data types, making usage more
+  type-safe
+- Completely refactor the Statistics provider as well as the statistics display
+- Replace the deprecated `registerFileProtocol` call with the new recommended
+  `handle` call for handling `safe-file://` calls
+- Re-introduce linter rules; all of these are part of the common style we
+  already use, but they got lost in one of the past ESLint upgrades:
+  - enforce single quotes across the codebase
+  - enforce proper object property spacing
+  - enforce type imports
+- Moved all keymaps to a centralized space, enabling us to customize them
+  further in the future and streamlining the available keybindings
+- The document provider is now more strict when loading persisted window
+  arrangements from disk on startup
+- Made many additional strings in the GUI translatable
+
+# 3.2.3
+
+## GUI and Functionality
+
+- Fix highlight markers not appearing while the emphasis renderer is on when the
+  user edits a highlighted span
+- Add pascal syntax highlighting to the code block autocomplete
+- Improved highlight detection around punctuation marks and other non-word
+  characters
+- Image previews now treat escaped quotes in image titles properly
+  (`![alt](image.png "\"quoted\" title")`)
+- Fix an issue with image caption updating that may replace text surrounding the
+  image (#5021)
+- Too small images won't display the informational layers anymore (#3953)
+- Improve image copy and paste operations (#5408)
+- Improve dropping operations onto the main editor
+- Blockquote markers are now properly hidden with the emphasis renderer on and
+  the cursor not within the blockquote (#4667)
+- Fix ambiguous German unsaved-changes dialog (#5072)
+- Fixed an issue where some websites could make Zettlr freeze on loading a link
+  preview via catastrophic backtracking in a regular expression (#4883)
+- Make link preview generator more resilient
+- Updated German (`de-DE`) translation (#5399)
+- Fixed an issue where indented LaTeX math equations could crash the editor
+  instance due to the code marks including superfluous newlines (#4726)
+- Fixed missing code block background on YAML Frontmatters
+- Improved visual feedback during the update process
+- Zettlr now checks for new updates once an hour instead only during startup
+- New tags are now picked up by the app immediately (#5140)
+- Fixed a UI regression where clicking on the tag filter didn't focus the text
+  box (#5444)
+- Nightly releases are no longer considered older than the current stable
+  version (#5429)
+- Fixed file duplication (#5360)
+- Fixed a bug that would cause a saved window state to be lost due to an issue
+  with the active file not existing anymore
+- Zettlr now respects your chosen symbols for bold and italic formatting upon
+  converting HTML to Markdown (e.g., during paste; #5396)
+
+## Under the Hood
+
+- Moved image preview styles into Codemirror plugin; simplified container
+- Bump Pandoc to version 3.5
+- Properly type document tree JSONs and make the logic more resilient to a lack
+  of an active file upon hydration
+- Properly type props for MainEditor Vue component
+
+# 3.2.2
+
+## Changes to Pandoc Profiles
+
+This update fixes a workaround that Zettlr had in place for a shortcoming of
+Pandoc regarding the automatic numbering of headings. This workaround is no
+longer necessary, since Pandoc has since fixed the issue. 
+
+Zettlr now ships with changed default profiles for various export formats. Since
+Zettlr never overwrites any data, the new defaults will not be applied
+automatically. You can apply the change manually by removing the following line
+from the default profiles: `shift-heading-level-by: 1`.
+
+## GUI and Functionality
+
+- **change**: Remove `shift-heading-level-by: 1` line from default profiles
+- Fixed the "Paste as Plain" menu item not working (#5052)
+- Dark mode folded header's ellipsis are now properly colored (#5284)
+- Add Pascal syntax highlighting (keyword: `pascal`; #5368)
+- Fixed images in file previews on hovering internal file links not working
+  (#5041)
+- Fixed the tag search from the tag cloud popover (#5124)
+- Fixed visual artifacts in the backgrounds for code blocks and comments (#5260)
+- Fixed a bug that would apply certain shortcuts to all open editor panes,
+  rather than the last focused one (#5282)
+- The save changes dialog now offers a cancel option that will be chosen when
+  pressing Escape (#5338)
+- Updated translation for `es-ES` (#5372)
+- Fixed the main editor search panel overlaying popovers/flyouts (#5397)
+- Fixed the highlighting, which now retains any syntax highlighting (and thus
+  functions like interacting with links) between the markers (`==highlight==`)
+  as well as enabling spell checking of highlighted ranges
+- Fixed an issue preventing pasting of images into the editor (#5386)
+- Fixed the maximum height of the image preview in the paste-image dialog to 50%
+  in order to prevent it from pushing the controls out of view
+- Fixed the code and citation background colors in the Bordeaux dark theme
+
+## Under the Hood
+
+- Images across the application now have a `max-width: 100%` applied to them to
+  ensure they never overflow their parent container.
+- The `md2html` utility function now allows a fourth parameter containing hooks
+  that allow the further customization of the produced HTML output
+- Bumped CodeMirror and dependencies
+- Bumped ESLint and dependencies
+- Fixed HTML DOM structure in a few places where they would violate the spec
+
+# 3.2.1
+
+## GUI and Functionality
+
+- Zettlr now remembers the widths of file manager and sidebar
+- You can now reset the file manager and sidebar widths by double-clicking the
+  corresponding resizer
+- Fixed an issue with the Markdown AST parser that would wrongly parse tables
+  with empty cells and forget some of them
+- Copying plain links in the form `<http://www.example.com>` will now remove the
+  angled brackets (#5285)
+- Reverted a change from 3.1.0 which altered the process of creating new files
+  in such a way that the "open directory" was no longer considered; now Zettlr
+  will again use the open directory if present, allowing users to quickly create
+  new files by selecting a folder first in the file manager (#5141)
+- Updated translations:
+  - `it-IT` (#5233)
+  - `zh-TW` (#5327)
+  - `nl-NL` (#5319)
+  - `ru-RU` (#5314)
+
+## Under the Hood
+
+- Update Electron to `v32.1.0`
+- Update Pandoc to `v3.4`
+- Switched to ESLint v9.x, thereby replacing the "old" `.eslintrc.json` config
+  with what ESLint calls "flat" configs
+- Bumped various dependencies
+
+# 3.2.0
+
+## Resolved Data Loss Issues
+
+When Zettlr v3.0.0 was released, we started receiving reports by users
+mentioning that some files wouldn't properly save, potentially leading to data
+loss. After searching for the underlying root cause, we have now identified it
+as improper newline handling in files. Specifically, we have accidentally
+introduced a bug that would render Zettlr incapable of properly detecting
+Windows-style CRLF newlines. This means that Zettlr was only sometimes able to
+properly read and modify such files.
+
+This update fixes this bug. Now, Zettlr is able to properly read and modify any
+file, regardless of whether it has been created on Windows, macOS, Linux, or
+even some older systems. We would like to apologize for this bug and thank you
+for sticking with Zettlr despite it.
+
+## Changes to the file filtering logic
+
+The filter field in the file manager has always applied OR-logic when searching
+for files and workspaces. In this latest update, Zettlr changes to AND file
+filtering logic, meaning that only items matching all queries will be displayed
+when entering phrases separated by spaces.
+
+As an example: Until now, searching for "Niklas Luhmann" would've surfaced files
+that contained either "Niklas" or "Luhmann," or both. From now on, searching for
+"Niklas Luhmann" will only show files that contain *both* "Niklas" *and*
+"Luhmann" and exclude files that miss one of these phrases.
+
+## GUI and Functionality
+
+- **Feature**: The attachment/assets/other file sidebar tab now also shows files
+  found in the default image folder where applicable
+- **Feature**: The right-click context menu for external markdown links now 
+  contains an option to remove a link. When removing `<link>` style links, the
+  `link` text remains as plain text. When removing `[title](link)` style links, 
+  the `title` text remains as plain text.
+- **Change**: When searching for files in the filter field, only files and
+  workspaces that match all queries entered will be displayed
+- Fixed the French translation of unsaved-changes dialog actions. (#5177)
+- Fixed bugs with properly saving files (and retaining linefeeds) on Windows
+  systems; now Zettlr should be capable of handling any type of linefeed (#5109)
+- Fixed an issue where checkboxes in various list controls would not be properly
+  updated to reflect the actual, underlying value
+- Fix assets file icons in the sidebar
+- Design fixes in the sidebar
+- Fix: The file preview tooltip now respects the filename display settings
+- Fix: Focus input field when search in folder (global search) is
+  triggered
+
+## Under the Hood
+
+- Upgrade Electron to `v30.1.0` (cf. issue #5135 and Electron issue #41839)
+- Downgrade Linux builds to use Ubuntu 20.04 instead of 22.04 (#5137)
+- Fully abstract away newline handling from the internal logic. Now, newlines
+  are always `\n` across the entire app. The actual newlines from the files will
+  be stored in their respective file descriptor, and will be exclusively used on
+  file reads (to replace them with `\n`) and file writes (to replace `\n` with)
+
+# 3.1.1
+
+## GUI and Functionality
+
+- Fixed a segmentation fault crash on startup across various Linux setups
+  (#5135)
+
+## Under the Hood
+
+- Downgrade Electron to version `29.3.2` (cf. Electron issue #41839)
+
+# 3.1.0
+
+## Changes to the link detection
+
+For a long time now, Zettlr would (sometimes aggressively so) detect plain links
+and display them in a rendered state. In some cases, this was nice as it would
+relieve you from having to surround such links with pointy or angled brackets.
+
+However, especially in the latest evolution of this parser plugin, the link
+detection was a bit too aggressive and interfered, e.g., with emphasis
+highlighting. In this version, we have entirely removed our custom link
+detection and rely upon the more straight-forward way of detecting links.
+
+Regarding your exporting experience, this should not have any impact, since the
+auto-link-detection feature wasn't enabled by default by Pandoc anyhow, but
+depending on how you have been writing, you may notice less detected links in
+your documents.
+
+To add "plain" links (without using the full `[]()`-syntax) from now on, simply
+surround them with angled brackets: `<https://www.google.com>` or
+`<mail@example.com>`. Note that the protocol (`https://`) is required, so
+`<www.google.com>` will not work.
+
+This changes brings Zettlr's link functionality much more into alignment with
+other editors as well, since this is the way that many other applications handle
+links as well.
+
+## Introducing Wikilink Titles
+
+This update brings a long-awaited change to Zettlr's handling of internal links
+(sometimes called Wikilinks). Specifically, with this version, Zettlr finally
+supports optional titles in such links. Your old links in the format `[[link]]`
+still work fine, but now you can add a title that is different from the link,
+separated by a pipe, or vertical bar character (`|`).
+
+If such a title is given, Zettlr will use it in various ways to make your files
+more readable. For example, if you have the link renderer activated in the
+settings, it will take care of hiding the link target of Wikilinks as well as
+those of regular Markdown links.
+
+Since there is no way of knowing which of the two parts is the link, and which
+is the title, Zettlr follows Pandoc's solution in allowing you to specify how
+internal links are structured for you. The default and recommended setting is to
+put links first, and titles second (`[[link|title]]`). This ensures
+compatibility with VimWiki, MediaWiki, Obsidian, and others. However, should you
+need to target GitHub wiki pages or another application that expects a title to
+come first, you can select the alternative option (`[[title|link]]`).
+
+In order to make Pandoc aware of your choice, you can add one of the following
+reader extensions to your export profiles: `wikilinks_title_after_pipe` or
+`wikilinks_title_before_pipe`.
+
+Lastly, due to this improvement, we have changed the default setting for "link
+with filename" from "always" to "never", since it will be more ergonomic to use
+a custom link title directly instead of having the filename pop up after the
+link. This default setting applies only to new installations automatically; so
+if you already installed Zettlr, you can manually switch it.
+
+## Re-enabling old Link-Title-Syntax
+
+After the release of Zettlr v3.0.0, some users have complained that their
+internal links have stopped working. It turns out that quite a lot were using
+Logseq's syntax for adding titles to internal links (`[Title]([[Link]])`), which
+we broke during a refactor of the Markdown parser. This update partially
+restores this link functionality, allowing you to `Cmd/Ctrl-Click` them to
+follow these links again.
+
+Note that we have not implemented other parts yet, and we recommend the more
+common `[[wikilinks]]` or `[regular markdown links](./file.md)`.
+
+## Preferences Window Overhaul
+
+This release marks the debut of our UX/UI artist Artem Barinov who spent the
+better half of 2023 redesigning the entire preferences window from scratch.
+While this change narrowly didn't make it into 3.0.0, we are more than excited
+to introduce this new and sleek overhaul in this version.
+
+The new window now follows a much more consistent design philosophy. While we
+have kept the broad tabbed outline, the settings have now been moved into
+smaller blocks that contain sets of related settings. Furthermore, instead of
+having to remember where a setting is located, you can now directly search for
+it using the new search bar.
+
+We also took the opportunity to change, rename, relabel, and remove settings so
+that a bit of older remnants are now gone. Overall, the experience of changing
+the settings should now be much smoother, and we hope you like the change. In
+the coming updates, you can improve many more improvements on the UX side of
+things!
+
+## Project Overhaul: Full Control Over Your Files
+
+Projects are at the heart of Zettlr. As a writing toolbox primarily targeted at
+academics, journalists, and writers, it must cater not just to simple note-
+taking workflows, but also to serious writing. Because of this, Zettlr ships
+with a project feature since the very beginning (since version `0.18.0`,
+released on Jul 20, 2018, to be precise).
+
+However, for a long time the feature attempted to piggyback on the way your
+files were displayed. This meant that (a) the order in which your files were
+weaved together into the project file depended on the sorting of the directory,
+and (b) there was no clear way to exclude files that naturally amass during the
+lifetime of a project, such as notes, backup files, and miscellaneous.
+
+Zettlr 3.1.0 fixes this issue by introducing a rather small, but powerful change
+to the way projects work. We have removed the difficult to understand glob-
+patterns that were introduced in a less-than-ideal attempt to fix some of the
+complexity-issues that were introduced later (such as displaying file titles
+instead of filenames, and others). Instead, you can now explicitly select which
+files will be included in your bound export files – and in which order.
+
+The new file list, which you can find in the project properties dialog, aims to
+be dead-simple to understand, yet give you back the certainty which files will
+end up where in your export – without a doubt.
+
+This also means a change to your projects: After this update, the glob patterns
+will be removed from your `.ztr-directory` files and replaced with an (initially
+empty) array of files to be included in your project. That means that you will
+have to select the files you want to include in a project once after the update.
+
+Managing this list in the project properties is simple: The "Files" tab includes
+a list of all files available within the project's folder structure. To select a
+file for export, click the "+"-button to move it up and include it in the
+export. Next, you can use the "Up"- and "Down"-buttons to change the order of
+the files within your export. The "-"-button removes a file again and moves it
+back down to the list of ignored files. Changes are immediately applied and
+persisted to your disk.
+
+When you now export the project, Zettlr will use only the files you have
+selected, and put them in the appropriate order.
+
+Should you have deleted a file that you originally included in the list of
+files, Zettlr will show you a warning message as soon as you export it so that
+you can have a second look to not send off a file that's missing a crucial part
+of your work. Such missing files are shown atop of the available files and
+feature a "-"-button which allows you to remove them from the list. We opted for
+this approach of you manually having to remove missing links, since it makes it
+transparent which files are missing so you can take the appropriate action
+(especially if it was an accidental deletion).
+
+## LanguageTool Improvements
+
+The first update to Zettlr's LanguageTool integration concerns the language
+detection. This update ships with two improvements:
+
+1. Zettlr implements LanguageTool's "Preferred Variants" setting
+2. LanguageTool respects the `lang` frontmatter property
+
+Those who prefer writing in British English (instead of, e.g., US English) had
+to resort to manually switching the automatically detected language from en-US
+to en-GB every time they opened a file. This has to do with fact that
+LanguageTool's auto-detector cannot reliably distinguish between variants of
+some languages (English, German, Portuguese, and Catalan). That is why LT
+implements a "Preferred Variants" setting that allows you to specify which
+variant you prefer when writing in any of these languages. Zettlr now implements
+this setting so that when LT auto-detects the language, it will choose that
+variant if it detects that, e.g., English is the language. You can adapt this in
+the settings.
+
+Second, LanguageTool now respects the `lang` property in YAML frontmatters. This
+will come in especially handy for people writing bilingual and where
+LanguageTool has troubles auto-detecting the primary language. By setting the
+property `lang` to the language of the document (e.g., `en-CA`), LanguageTool
+will default to that one instead of choosing the auto-detection. As an added
+benefit, Pandoc also supports this property to localize some things here and
+there (read more at https://pandoc.org/MANUAL.html#language-variables).
+
+Note that both improvements only apply to the initial loading of a document. You
+can always override the language on a per-document basis using the status bar.
+
+## GUI and Functionality
+
+- **Feature**: Zettlr now supports titles in internal (wiki) links; the default
+  setting instructs the parser to expect first the link, and then the title
+  (`[[link|title]]`), which ensures compatibility to, e.g., VimWiki, MediaWiki,
+  or Obsidian, whereas the alternative setting (`[[title|link]]`) is compatible
+  to GitHub wiki syntax. Remember that you need to enable the corresponding
+  option on the Pandoc Markdown reader (`wikilinks_title_after_pipe` or
+  `wikilinks_title_before_pipe`, respectively) if you wish to export files with
+  this option
+- **Feature**: Project Overhaul. Now you can properly manage which files will be
+  exported in projects, and in which order
+- **Feature**: Zettlr can now suggest you emojis during autocompletion. Emojis
+  use the same trigger character as the snippets autocomplete, a colon (`:`);
+  and Emojis will always be sorted below your snippets -- you can turn this off
+  in the editor settings
+- **Feature**: We've completely redesigned the preferences dialog; now it is
+  more aligned with the system preferences on macOS and Windows, allows
+  searching and follows a more stringent structure (special thanks to our UX/UI
+  artist Artem for spending almost an entire year redesigning it from the ground
+  up!)
+- **Feature**: The assets manager now provides buttons to open the defaults and
+  snippets directories directly from within the app
+- **Feature**: The table insertion popover now displays how many rows and
+  columns will be inserted
+- **Feature**: A new setting allows to highlight whitespace across the app
+  (#1123)
+- **Feature**: Implemented the LanguageTool Preferred Variants setting; now you
+  can select variants of certain languages (English, German, Portuguese, and
+  Catalan) for cases in which the automatic detection may pick the wrong one
+- **Feature**: LanguageTool now respects the `lang` YAML frontmatter property
+  (if present and conforming to simple BCP-47 tags, e.g., `de` or `de-DE`),
+  instead of defaulting to "auto"; this allows you to specify the languages of
+  your documents instead of relying on LanguageTool to figure it out; may not
+  work with more exotic tag variants (such as `de-DE-x-simple-language`)
+- **Change**: The attachment sidebar no longer considers the "open folder" for
+  fetching its "other files" -- instead it will use the last focused file's
+  folder
+- **Change**: The shortcut for deleting a directory has been removed from the
+  menu as it provided an opaque way of deleting a seemingly random folder; now
+  deleting a folder requires right-clicking the corresponding directory which
+  makes the process more transparent
+- **Change**: Removed the option for choosing to sort by either file creation or
+  last modification time, since that can also be inferred from whichever time
+  you choose to display
+- **Change**: Removed the option for activating or disabling automatic file
+  creation upon following internal links; now this will happen automatically as
+  long as the "custom folder" option points to an existing folder; to disable
+  this functionality simply remove the folder path
+- Fixed a bug where recent documents would not turn up in the menu
+- Fixed the sidebar shortcut: It is now `Cmd/Ctrl+Shift+0` (to align with the
+  file manager shortcut, which is `Cmd/Ctrl+Shift+1`)
+- Custom protocols should now be opened without problems by Zettlr (#3853)
+- Added Tamil (India) translation (#4848)
+- Removed the custom plain link parser out of two reasons: (1) It was a tad too
+  aggressive, detecting links even where none were wanted; (2) Pandoc doesn't
+  support auto-links in such a way as we have implemented it, leading to
+  inconsistencies in exports
+- The YAML frontmatter is now ignored for the purposes of previewing files,
+  showing a more meaningful preview of its contents (#4598)
+- Improve pasting behavior: Now text from Microsoft Word or Excel will be pasted
+  as text, instead of offering to insert an image of the selection
+- Fix pasting behavior: Now Zettlr should properly paste most formatted text
+  without too much noise (in the form of comments, styles, and other additions)
+- Fix restart-dialog showing multiple times for the same options (#4768)
+- Fix the active typewriter line background color in dark mode
+- Fixed an issue where gutter markers were not equally offset when typewriter
+  mode was active (#4918)
+- Fixed non-working file deletion menu item (#3894)
+- Fixed a bug that would not ask users to save their changes when closing the
+  last main window on Windows or Linux (#4898)
+- Fixed a bug that would not properly restore the open directory on application
+  boot (#3797)
+- Fixed an issue that would break drag & drop behavior of editor panes when the
+  path name contained a colon on non-Windows systems (#4822)
+- Fixed an issue where the re-ordering of list item numbers would not ensure
+  that lists start at 1
+- Fixed an issue that has removed the custom background color from the Bielefeld
+  and Bordeaux themes (#4913)
+- Fixed broken context menu options for images (#4893)
+- Implemented superscript and subscript HTML rendering in the internal Markdown-
+  to-HTML converter (#4943)
+- Improved the TableEditor to more reliably parse tables; also, when a table
+  could not be rendered out of any reason, the editor will simply remain dormant
+  and not render the table instead of messing up the entire document
+- Improvements to how the Markdown AST handles table parsing, which will improve
+  Markdown-to-HTML conversion both within the TableEditor as well as when
+  copying as HTML
+- Fixed an issue that would make a context menu on macOS appear offset from the
+  actual mouse position if the window's GUI was scaled absolutely (as per the
+  preferences); now the context menu should always appear exactly where it
+  should be
+- Updated the CodeMirror dependencies to resolve an issue where users of
+  keyboards with `Alt-G` being assigned to some character were unable to type
+  that (specifically, Swiss-Mac keyboard users could not type an `@`)
+- Fixed a bug that would not properly highlight PHP syntax in code blocks
+- The link renderer will now also hide internal link/Wikilink links and only
+  show the titles, if enabled
+- Internal link tooltips will now show regardless of where inside the link your
+  mouse cursor is
+- Added a visible error message to two places in which saving documents may go
+  wrong so that users have visible feedback if their changes are actually
+  persisted to disk (#4229)
+- Re-enable following internal Links in the format `[Title]([[Link]])` by
+  clicking them with `Cmd/Ctrl` pressed
+- Fixed a bug that would not properly check for autocorrect values during a
+  spell check
+- The cursor on the editor scrollbars should now be a regular pointer instead of
+  a text cursor (#4441)
+- The global search now differentiates between the total amount of matches and
+  the number of matched files
+- The search button in the global search will now be disabled during a search
+- Due to the new ability to add link titles, the default setting for "Link with
+  filename" is now set to "never" for new installations; you may consider
+  changing this as well
+- The updater now contains a message indicating when Zettlr last checked for
+  updates (#4963)
+- Fixed a bug that would sometimes make the "New file" command hang (#4785)
+- Fixed a bug on Windows and Linux that would not make the context menu on the
+  status bar's MagicQuotes handler appear
+- Fixed a bug in the print window (#4902)
+- Fixed a bug in the image pasting modal handler (#5007)
+- Fixed a bug caused by a workaround from a few years ago, making dialogs modal
+  again (see #4952)
+- Fixed an issue that would prevent the status bar in Code editors to switch
+  between light and dark
+- Fixed an issue that would not show the color picker's color in the tag manager
+  on Windows
+- Fixed list item indentation in Markdown and Code files
+- Fixed a bug that would make Zettlr always save files with regular newlines
+  (LF), even if the file originally uses carriage returns (CR) or a mixture
+  (CRLF or LFCR), leading, among other things, to save issues (#4959)
+- Fixed a bug that would make opening and closing folders in the file manager
+  very hard
+- The importer will ask for a target directory first now, and no longer use the
+  `openDirectory` configuration value as a metric (due to a limitation in the
+  dialog engine, this is a bit opaque and will be improved; for more info see
+  issue #5084)
+- Fixed an issue with the AST parser that has made it impossible to successfully
+  parse Markdown tables with empty cells (#5025)
+- Fixed an issue with inserting Markdown tables via the popover (#5028)
+- Add a somewhat more informative message to the directory selection in the
+  file importing workflow
+- Improved how focusing the various open editors works (#4889)
+- Fixed an issue where some borders in between split views wouldn't be drawn in
+  more complex layouts
+- Fixed an issue that would not add a newly created file outside the loaded
+  workspaces to the list of standalone files, leading to various minor
+  annoyances around other parts of the app
+- It should now be more difficult to add faulty autocorrect entries (#4961)
+
+## Under the Hood
+
+- Version updates:
+  - Pandoc: `3.1.13`
+  - Electron: `30.0.2`
+- Switched from the `vue-recommended` to the `vue3-recommended` ESLint ruleset
+- Removed the config option `sortingTime` since that can be inferred from the
+  option `fileMetaTime`
+- Removed the config option `zkn.autoCreateLinkedFiles`, since that can be
+  inferred from the option `zkn.customDir`
+- Simplified tab bar tab retention logic across reloads
+- Add the ability to programmatically open the assets window with specified tab
+- Failure to fetch a link preview will now simply log a verbose message instead
+  of an error
+- Reimplement configuration guard options as Maps to allow for volatile state
+- Fully remove the renderers's dependency on Node.js's path module to prepare
+  for fully sandboxing the window code; instead polyfill the required functions,
+  testing them against the module's behavior
+- Completely sandbox renderers
+- Switched the popover logic away from deprecated plugin syntax to child
+  components with `Teleport` (#4663)
+- No more JavaScript: With this update, the entire code base (sans build
+  scripts) is written in TypeScript.
+- Migrated from Electron's deprecated clipboard API to the native Browser API
+- Migrated the entire main window store state from Vuex to Pinia
+- Fixed an issue with the FSALCache provider where we accidentally stored the
+  descriptors as strings, increasing the complexity of loading the cache values
+  (see #4269)
+- The internal Markdown-to-HTML converter now respects (potentially significant)
+  whitespace in the Markdown source to construct the HTML
+- The TableEditor now parses any table directly from the underlying parser to
+  ensure that the representation is (almost) identical to the parse state and
+  reduce complexity when parsing the table; several edge cases remain
+- Removed a check for whether certain commands exist; instead we now attempt to
+  run them, and if they do not succeed, we catch that error instead; removed
+  `commandExists` as it appears to have a few minor issues on Windows installs
+- The config provider now allows specifying options that will cause an event to
+  be emitted instructing every open MainEditor to reload itself; this can be
+  used to change options that affect non-reloadable components such as the
+  parser without having to manually close and re-open affected editors, or
+  forcing a reload of the entire main window
+- MainEditors can now be programmatically instructed by the main process to
+  reload themselves with the broadcast event `reload-editors`
+- Added the commands `shortcut:install` and `shortcut:uninstall` to add develop
+  shortcuts on Linux systems, allowing the simple launching of a binary compiled
+  from source (rather than the provided binaries)
+- Fixed an issue with showing the appropriate `platformVersion` in the about
+  debug info tab
+- Move `preventNavigation` utility function into the lifecycle handlers to
+  reduce boilerplate code and make the app more secure
+- Switched to the new YAML parser (`@codemirror/lang-yaml`)
+- Improved linting to include plain JavaScript files, but exclude type checking
+- Add build number (= git commit hash) to the debug info of the about dialog
+- Simplify exporter types
+- Retire the `test-gui` command; instead now the `start` command does the same;
+  similarly, `start` won't touch any existing Zettlr configuration anymore
+- Simplify CodeMirror theming, retire the `themeManager` and replace it with a
+  simpler, more general `darkTheme` extension
+- Disallow fuzzy matching during updates of translation files; previously this
+  has led to inaccurate results (see, e.g., #5042)
+- All renderer processes (= all windows) now have access to Pinia
+- Markdown AST parser is now its own module
+- Removed `openDirectory` functionality completely from the documents manager;
+  instead it is now again managed entirely by using the config provider,
+  removing tons of superfluous code
+- Properly unmount CodeMirror instances when the `MainEditor` is unmounted
+- Reinstated ability to style tags individually again; by targeting classes with
+  the format `.cm-zkn-tag-<tagName>` (#4589)
+- Fixed a bug that would prevent rendering of citations in certain edge cases
+  (#5069)
+- The citation parser is now more strict when it comes to `@Author [p. 123]`
+  citations: Now only spaces are allowed between the citation key and the suffix
+- Improved the i18n runs over the software, improving translatability (#5122)
+
+# 3.0.5
+
+## Dropping Support for macOS 10.13 and 10.14
+
+Due to Zettlr's underlying Electron framework dropping support for macOS 10.13
+(High Sierra) and 10.14 (Mojave), Zettlr drops support for these operating
+systems as well. To continue to use Zettlr on a Mac, ensure to update to at
+least macOS 10.15 (Catalina).
+
+## Linux ARM builds functionally again
+
+Since Zettlr v3.0.0, Linux users on ARM-machines had the issue that they could
+not run the app, as a dependency has been compiled for the wrong architecture.
+Thanks to efforts by @LaPingvino, this has now been finally fixed and you should
+be able to run the app again just fine on ARM computers with Linux.
+
+## GUI and Functionality
+
+- Fix: Segmentation faults in Wayland environments (#4877)
+- Fix Linux ARM builds (#4910)
+
+## Under the Hood
+
+- Update Electron from v25 to the latest available release (`v28.2.1`); this
+  fixes segmentation fault issues in Wayland environments (#4877) and ensures
+  that Zettlr keeps running a supported Electron version, which is especially
+  pressing for the Arch Linux repository (see #4887; thanks to @alerque for
+  bringing this to our attention), but also means that macOS 10.13 and 10.14 are
+  no longer supported
+- Switched to Zig compiler to enable successful compilation for Linux ARM
+  targets (#4910)
+
+# 3.0.4
+
+## Security patch -- Please Update immediately
+
+Dear users,
+
+a security researcher has brought to our attention an issue that can lead to a
+potential remote code execution (RCE) attack utilizing Zettlr's binary. This
+issue has been first discovered and exploited in 2023. It is unlikely that you
+have been affected, since the effort for this exploit is comparatively high and
+it requires you to take some non-trivial actions. However, since we are
+committed to making the app as safe as humanely possible to use, and the
+corresponding fix was pretty easy to implement, we decided to offer this
+security release that includes the same functionality as Zettlr v3.0.3, but with
+the added security patch included.
+
+A CVE (Common Vulnerabilities and Exposures) number has been applied for at
+MITRE, but not yet issued. Once we know the number, we will publish a postmortem
+on our blog and include some background as well as details about what this issue
+exactly implied, how it could have been exploited, and how we have mitigated the
+issue in this patch.
+
+## GUI and Functionality
+
+Nothing changed.
+
+## Under the hood
+
+- Update Electron to the last version 25 update (`v25.9.8`)
+- Add Electron fuses support and disable those that allow certain debug commands
+  to be sent to the binary (e.g., `--inspect`). This can be abused by malicious
+  actors for remote code execution (RCE) attacks (CVE number applied for at
+  MITRE; not yet issued; please see the Zettlr blog for updates)
+
+# 3.0.3
+
+## A Note on Custom CSS
+
+This update includes a full refactor of the theming: The editor themes (Berlin,
+Frankfurt, Bielefeld, Karl-Marx-Stadt, and Bordeaux) have now moved to their own
+theme files and do not come with standard CSS anymore. This heavily un-clutters
+the codebase, but it may impact your Custom CSS, should you use this feature. We
+have ensured that no class names change and that the styling is mostly the same,
+but the possibility of having to adapt the Custom CSS may arise for some of you.
+
+## GUI and Functionality
+
+- Fixed a visual issue that would handle overly long window titles improperly
+- Fixed `Tab` not indenting/unindenting code in the CodeEditors (snippets,
+  profiles, etc.)
+- Fixed a precedence issue that would make it impossible to use autocomplete
+  while filling in a snippet; now, accepting a potential autocomplete has a
+  higher precedence than moving to the next tabstop of a snippet, making working
+  with snippets more ergonomic
+- Images now render more appropriately in inline-contexts
+- Updated the German translation
+- Fixed the keyboard shortcut for inserting footnotes on Windows and Linux
+- Removed the accent color setting: now the accent color will always be the
+  system accent color on macOS and Windows, and Zettlr's brand green on Linux;
+  themes do not provide an accent color anymore
+- Restored syntax highlighting for inline math code
+- Fixes an issue that would frequently may make the cursor appear to jump or a
+  dialog appearing warning of external changes (#4729; #4732)
+- Added some translations
+- Generating link previews no longer downloads the entire link target if the
+  content is not preview-able
+- Improved layout of link previews
+- Overly long summaries of link previews are now shortened
+- Project properties now adequately resolve the readers and writers of the
+  existing profiles, enabling the usage of profiles with extended
+  readers/writers (#4699)
+- GraphView's labels are now rendered filled instead of stroked, to make it
+  easier to read the labels.
+- The GraphView does now support multi-window, so clicking a link will open it
+  in the last focused window. If the file is already open in a leaf, that file
+  will be in that leaf, otherwise it will open the file in the last focused
+  leaf.
+- `Alt+Click` in GraphView will force the document to be opened in a new tab.
+- Zettelkasten links and tags will now be output by our custom Markdown-to-HTML
+  parser (i.e., in various places in the app as well as on Copy with Style)
+
+
+## Under the Hood
+
+- Moved all themes from the `*.less`-files into proper theme plugins for
+  CodeMirror v6; this means that they will not provide any global styles
+  anymore; any applicable styling has been moved to more appropriate places
+  (CodeMirror plugins as well as the WindowChrome and the various remaining
+  `*.less` files). We tested the changes out and in our settings, no changes
+  were necessary; sometimes you may need to adapt class definitions
+- Remove unused color variable definitions
+- Move gray color palette to the Window Chrome component
+- Fixed an issue where the font definitions were borked and required usage of
+  `!important` to make them work (#4719)
+- Upgraded all available CodeMirror components to the most recent version
+- Replaced `fs.unlink` with `fs.rm` in `safeDelete` to support recursive removal
+  of directories
+- `fsal-directory::removeChild` now calls `pathExists` instead of `isFile` to
+  make sure directories also are removed in removeChild
+- `pathExists` wraps `fs.promises.access`.
+- (CodeMirror) Move plugin-specific base styles from the main override as well
+  as from the themes to the respective plugin files
+- Bump Pandoc to version `3.1.9`
+- Fixed a weird layouting issue with the code block backgrounds
+- DocumentManager's `openFile` does now handle the case when windowId and leafId
+  is undefined, by keeping track on the last used editor.
+
+# 3.0.2
+
+## GUI and Functionality
+
+- Fixed a bug that would not parse plain-text links at the end of a line
+  completely
+- Added two heuristics to plain link parser: (a) if the matched link ends with a
+  period, exclude the period; (b) if the matched link ends with a closing
+  bracket that does not match an open bracket, exclude the closing bracket
+  (remember that you can explicitly define the start and end of plain links by
+  wrapping them in `<` and `>`)
+- Fixed an issue that could lead to data loss if "Always load remote changes"
+  was checked in the settings
+- Improved the Czech translation (#4688)
+- Fixed an issue that would import Markdown files as LaTeX instead of simply
+  copying the file
+- If multiple candidate profiles to import files are found, the user can now
+  choose the correct one
+- Cmd/Ctrl-Clicking on non-rendered Markdown links will now have the same effect
+  as directly clicking on the URL part of the link: follow the link
+- The link renderer is now native in that it simply hides formatting characters
+  instead of rendering a widget in place of the link; making inline formatting
+  easier. NOTE: When copying a link as HTML, inline formatting in the
+  descriptions is not yet parsed to HTML due to a limitation in the AST parser
+
+## Under the Hood
+
+- Increased the "immediate" save delay from 250 to 500ms to give slower systems
+  more time to persist changes to disk
+- Replaced direct `access` and `stat` calls for files and directories in the
+  FSAL with a wrapper that will later on allow us to keep different file systems
+  (e.g., WebDav versus local filesystem) opaque to the user
+- Fixed a potentially (?) horrible bug where directory modification times were
+  accidentally set to `ctime` instead of `mtime`, leaving any changes to the
+  directory that do not also update `ctime` hidden from the FSAL
+- Fixed a misalignment of the `InlineCode` element for the Pandoc attribute
+  parser
+- Upgrade Electron to v25.8.4, mitigating CVE-2023-5217
+
+# 3.0.1
+
+## GUI and Functionality
+
+- Monospaced elements such as inline code elements are now rendered in monospace
+  font again
+- Fixed a bug preventing assigning colors and descriptions to tags in the tag
+  manager
+- Magic Quotes detect forward and backward slashes (/ and \\) as non-word
+  characters, behind which a starting Magic Quote can begin
+- Zettlr now properly uses a proper filename extension on export even when using
+  extensions
+- The generic text input context menu shows proper labels (#4655)
+- Improved the French translation
+- Improved the Japanese translation
+- Improved the Catalan translation
+- Fixed link previews for short notes
+- Updated the notification and menubar (Windows/Linux) icons to the new logo
+- Fixed a bug that would prevent changing the directory sorting order (#4654)
+- Fixed a bug that would sometimes cause the autocomplete pop-up not showing
+  when editing an existing Zettelkasten link (#4653)
+- Fixed a bug that would sometimes cause the last active tab(s) to not be
+  remembered correctly on launch
+- Improved calendar view layout
+- Fixed a visual bug that would make a distraction-free editor overlay even
+  pop-overs
+- Fixed a small glitch that would prevent proper visual indented alignment of
+  images when inside of list items
+- Replace the long "Open image externally" message with an icon on prerendered
+  images and move it to the title; also make the message translatable
+
+## Under the Hood
+
+- Fixed the `plainPandocReaderWriter` utility function to properly extract the
+  plain reader/writer in all possible configurations
+- Improved performance of the math equation parser
+- Improved performance of the footnote parser
+- Improved performance of the plain link parser
+- Renamed the Catalan translation file from `ca-CA` to `ca-ES`
+- Moved the notification provider to a utility function
+- Refactored Popover logic to use props instead of data for initialization to
+  ensure the data is available upon component instantiation, making the logic
+  less brittle
+- Refactored a hacky solution that would not remember the previous editor state
+  when entering distraction free mode and led to various other issues and bugs
+- Update Electron to v25.8.1 to mitigate CVE-2023-4863
+
+# 3.0.0
+
+## READ THIS FIRST!
+
+This update brings a host of changes and new features. If you're upgrading from
+an older version of Zettlr, you will have to re-do a few things because due to
+the extensive changes, we had to adapt how your data is persisted. Here's the
+quick list:
+
+1. Your open documents will have to be re-opened once. Regardless of which files
+   were open previously, they will all be closed after the update.
+2. There are no more unsaved in-memory files.
+3. Two default settings have changed in order to maximize benefits from the new
+   features: Avoid new tabs is now set to false (since split-panes also allows
+   you to spread out your open documents across several panes and windows), and
+   Always reload remote changes is now set to true by default.
+4. The defaults system has changed. You will see new export options that weren't
+   there before, and you will see some weird `export.format.yaml` and
+   `import.format.yaml` export options. These are the "old" profiles we have
+   kept in case you made modifications. We suggest you copy over all changes to
+   the new profiles and then delete them, or rename those old ones to more
+   memorable names. Read more below.
+5. The TableEditor has received a better save strategy to prevent data loss. As
+   it is impossible to fully control the data flow from the visual table element
+   into the underlying Markdown document, this data flow is now explicit: Tables
+   now feature a save button (with a disk icon) at the top of the table. Its
+   background will be green as long as the table has not been modified. Once it
+   it modified, the background will turn red. Click the button to apply all
+   changes to the document.
+6. Quicklook windows are completely gone now.
+7. Footnote editing has changed: Instead of editing the footnote in-place by
+   `Cmd/Ctrl`-clicking it, there is now an "Edit" button inside the footnote
+   preview which, upon clicking, will bring you to the footnote context. This
+   has the benefit that you will have full syntax highlighting support as well
+   as any shortcuts and commands you may need.
+8. We have deprecated the Zettelkasten link start and end configuration
+   settings. Both are now fixed to `[[` and `]]` respectively. We have figured
+   that nobody needs to configure this, and it makes many parts of our code
+   easier.
+
+## Correcting Ordered List Numbers on Move
+
+Moving lines that are part of an ordered list using 'Alt-UpArrow'/'Alt-DownArrow' 
+will now also correct the list numbers of any affected lists after the move.
+
+## New Icons on Windows and Linux
+
+For 3.0, we decided that it's time to give our app icons a facelift. For the
+past six years, Zettlr sported working, but relatively bland icons to convey its
+existence on the taskbar to its users. The new icons still convey the same
+message, but you will notice that they now integrate much better into the new
+Windows 11 Fluent UI.
+
+We decided to exchange the icons on Linux as well. They may not seamlessly
+integrate into your specific UI, but we feel they will definitely look more
+modern than the previous iteration of icons.
+
+With this move, the Windows and Linux experience of Zettlr finally moves on par
+to the macOS experience, which has received an updated icon with the release of
+Zettlr 2.0.
+
+## Split-Panes and Multiple Windows
+
+A long awaited feature has made it into this version: Now you can open multiple
+windows and you can split the editor area in every window into multiple parts,
+so-called editor _panes_ (sometimes we may call them "leafs" since internally
+they are represented as a tree structure. Feel free to remind us in that case
+that we're talking to humans, not our code). This means you can now open as many
+files as you wish at the same time, and you can spread them out across multiple
+windows. This will especially benefit workflows that rely on having open
+multiple files side by side to copy information or to read them. However, if you
+are happy with the old ways, you can of course opt not to use them. Here's how
+it works:
+
+* You can open a new window by choosing the corresponding menu item in the
+  Windows submenu, or by pressing `Cmd/Ctrl+Shift+N`.
+* You can now drag document tabs not just within the tab bar, but also onto the
+  editor area. If you move a document tab to the borders of the editor, a
+  shimmer will appear that indicates that you can split the editor to that side.
+  If you drop the file on one of the four borders of the editor, this will split
+  the corresponding editor in two along the specified direction (left, right,
+  top, bottom) and also move the file into that new pane.
+* You can also move document tabs between multiple panes by simply dropping them
+  in the center of an editor pane. As long as there's no shimmer, the file will
+  be moved instead. You can also drop a file onto a tabbar of one of the
+  editors, which will have the same effect (but it will be indicated with the
+  same blue shimmer as when you are splitting an editor).
+* After you have closed the last file inside such a pane, it will automatically
+  close itself. If the pane was part of a split, the other pane will then occupy
+  the place of the now closed editor pane. To create the pane again, simply drag
+  another file to the correct border of an existing editor pane.
+* You can resize the panes at will. Unlike the sidebar and file manager, we have
+  not implemented any size limits, so with a little bit of care, you can create
+  your unique mosaic of files.
+* Since we are now not limited to one active file and one set of open files per
+  window, these notions have changed their meaning. Now, every editor pane has
+  one set of open files and one active file. Each window also remembers which
+  pane was last active so that global features (such as the sidebar) can show
+  you information based on the most recently focused editor pane's active file.
+* Most contextual information (table of contents, list of references, etc.) will
+  now update based on the most recently focused editor. In order to make those
+  places show information relating to one of the open editors, simply click with
+  your mouse inside to focus them.
+
+## New Defaults/Profile File System
+
+This update introduces a new way to work with defaults files. At a glance,
+here's what has changed:
+
+* Zettlr now understands the `reader` and `writer` properties of defaults files
+* It uses those properties to determine if a file can be used for importing or
+  exporting, and displays the appropriate files in the relevant places for you
+  to choose
+* You can now create new defaults files, rename existing ones, or remove them
+* When changing the `writer` or `reader` for such a file, this change will be
+  recognized by Zettlr and be treated accordingly
+* This also means that Zettlr will from now on only ship with a minimum set of
+  profiles; but any additional import/export formats can be created by you with
+  just one click
+* Additionally, because of this, you are now able to export LaTeX files directly
+  without running them through a Markdown interpreter first, allowing you to,
+  e.g., create beamer slides or write plain TeX files within Zettlr
+* Furthermore, we have dropped our internal reveal.js exporter, since Pandoc
+  supports everything we did out of the box (and better) than our exporter
+
+## Tag Manager Update
+
+The tag manager has received a necessary face lift. Now, the tag manager shows
+all your tags and allows you to assign/un-assign colors and descriptions. This
+makes it easier to assign colors to certain tags without having to remember the
+tag first. Additionally, it gives you a better overview over your tags. The info
+is now being propagated better across the app, with more places showing the
+assigned colors for tags.
+
+Additionally, you now have a better way to consolidate your tags: Within the
+tag manager, you can now rename tags in order to clean up your tagging system.
+
+### Splash Screen
+
+As more and more users have increasingly large workspaces, we receive an
+increasing amount of feedback that the app start seems sluggish. To indicate
+that nothing is wrong and Zettlr simply needs time to recreate the cache, we
+have implemented a splash screen that shows if the file loading isn't finished
+after one second and displays the boot process to show what is happening behind
+the hood.
+
+### Migration Guide
+
+There are two instances where you will want to migrate something.
+
+#### Old defaults files
+
+Since Zettlr will never remove any data without asking, it will keep the
+previous files in your defaults directory. Now that their filename is also
+meaningful, you can see them by their naming structure: `import.format.yaml` and
+`export.format.yaml`. You are free to remove them or rename and keep them.
+
+Zettlr ships with a set of new files that are now additionally appropriately
+named. Those files are "protected". Protected files have a small lock icon next
+to their name. Protected means that if you delete or rename them, they will
+automatically be recreated. You can use this to your advantage: By deleting such
+a file, you are effectively resetting it to factory default (good if you forgot
+what you changed). By renaming such a file, you can effectively make a copy to
+have several versions of the same settings depending on your needs.
+
+#### Reveal.js Presentations
+
+Since we have now dropped our internal reveal.js exporter, there are a few
+changes you have to make to your existing reveal.js presentations. First, the
+theme must now be defined in a YAML frontmatter instead of via the dropdown. A
+minimal working YAML frontmatter will look like this:
+
+```markdown
+---
+theme: league
+---
+
+... the rest of the file
+```
+
+Supported theme values are:
+
+* `beige`
+* `black` (the default, in this case you can omit the `theme` variable)
+* `blood`
+* `league`
+* `moon`
+* `night`
+* `serif`
+* `simple`
+* `sky`
+* `solarized`
+* `white`
+
+Then, in order to get a working reveal.js presentation, you have to make sure
+that the property `standalone: true` is inside the profile (this is the
+default). In order to additionally copy everything into the HTML file to create
+a truly self-contained presentation, set the property `self-contained: true`.
+
+All other things should work as before, but may require a small tweak here or
+there.
+
+## GUI and Functionality
+
+- **New Feature**: You can now open multiple main windows, each with their own
+  files loaded
+- **New Feature**: You can now arbitrarily split the editor area into multiple
+  editor panes to keep open as many files at the same time as you wish
+- **New Feature**: After a long time, you can now again drag and drop entries in
+  the table of contents in the sidebar to rearrange sections of your file
+- **New Feature**: Overhauled, improved, and streamlined the defaults file
+  system used by the importer and exporter
+- **New Feature**: You can now pin tabs, which prevents them from being closed
+- **New Feature**: The editor will now check your Markdown for potential style
+  issues (can be disabled in the preferences)
+- **New Feature**: In the combined filemanager mode, you can now see writing
+  targets as a ring progress bar in the position of the file icon
+- **New Feature**: Zettlr can now automatically update internal links (Wiki/
+  Zettelkasten style) if you rename a file
+- **New Feature**: When you hover over a link, you can now get a link preview
+- **New Feature**: Zettlr now features a LanguageTool integration. You can turn
+  it on in the Spellchecker settings and even provide your LanguageTool username
+  and an API key to unlock premium features
+- **New Feature**: You can now activate a statusbar that shows some context-
+  specific information for each editor pane you have open; this statusbar also
+  shows you information for code editor panels, e.g., in the assets manager
+- **New Feature**: Changing a certain set of configuration options will make
+  Zettlr ask you whether you wish to restart the app for the changes to take
+  effect
+- **New Feature**: While modifying import and export profiles, Zettlr will now
+  check them for validity, and inform you of any potential errors
+- **New Feature**: You can now specify the Pandoc working directory in a file's
+  frontmatter with the property `pandoc_working_dir` within the `zettlr`
+  object
+- **New Feature**: Right-clicking on a file or directory now also gives you the
+  option to copy the absolute file or folder path to the clipboard
+- **New Feature**: There is now a new menu item that allows you to conveniently
+  clear the FSAL cache in case of some errors
+- **New Feature**: A new gutter to the left side of the editor will now display
+  arrow buttons next to footnote reference bodies that will select the
+  corresponding footnote reference up in the text upon click
+- **New Feature**: Add splash screen to indicate FSAL loading progress
+- Note preview tooltips now display a sanitized HTML version of the note's
+  Markdown contents
+- **New Feature**: Both entire YAML documents (including both profiles and
+  regular files) as well as YAML frontmatter sections in Markdown documents are
+  now linted, providing a visual indication that a piece of YAML code contains
+  syntax errors that prevents, e.g., Zettlr from detecting the file's title or
+  Pandoc from properly reading the metadata of the document
+- Removed the "Get LaTeX" menu item since (hopefully) now the advice in the docs
+  and in the tutorial are sufficient
+- Replaced the old Markdown-to-HTML and HTML-to-Markdown converter with more up-
+  to-date modules. This should not change how pasting from HTML or copying as
+  HTML work, but it could.
+- The TableEditor now has a clear data saving strategy: Whenever you change a
+  table, you need to manually click the disk icon at the top of the table to
+  apply all your changes to the document so that it can then be saved
+- Quicklook windows are gone completely now, since they can be more than
+  replaced by the new split views and multiple windows
+- The windows now finally correctly remember their positions, fixing an old bug
+- Improved the link tooltip inside the editor; it will show faster now and is
+  easier to access
+- Zettlr now recognizes Quarto Markdown files (`*.qmd`)
+- Code files (e.g. `*.tex` or `*.json`) now have line numbers enabled and the
+  margins of the main editor removed by default
+- The sidebar tabs are now static at the top, meaning you don't have to scroll
+  up within a long list just to see the tabbar
+- Lists (especially in the assets manager) now also allow you to remove entries
+  with a right click
+- Fixed the Simple PDF, Textbundle, and Textpack exporters
+- Added new variables for snippets:
+  - `CURRENT_ID`: Holds the currently assigned Zettelkasten ID to the file
+  - `FILENAME`: Holds the filename of the current file
+  - `DIRECTORY`: Holds the directory path for the current file
+  - `EXTENSION`: Holds the file extension for the current file
+- Fixed inability to move the text cursor while renaming files in the file tree
+- Fixed ability to case-sensitively rename files
+- Fixed an incredibly dangerous bug that would lead to data loss if the app was
+  being shut down before the statistics provider has been booted up; in which
+  case the provider would overwrite sometimes several years worth of statistics
+  with empty data
+- Added the ability to use mouse buttons 4 and 5 for forward/backward navigation
+- Fixed a visual glitch on Linux where in dark mode the active tab would have no
+  colored bottom border
+- Added a third exporter option: You can now have Zettlr ask you everytime where
+  it should store an exported file
+- In case of an error, the error dialog will now also present the Pandoc error
+  code
+- Fixed a minor bug in toolbar toggle controls that necessitated clicking them
+  twice to bring them into the "active" state (holds especially true for the
+  sidebar toggle)
+- Fixed faulty updates on Windows: Now the downloaded file should be opened
+  without any errors
+- Middle-mouse clicks on the collapse/uncollapse indicators in the file tree
+  should no longer trigger scrolling behavior on Windows
+- File tree items now show their absolute path on mouse hover
+- Clicking a directory will now also uncollapse it without having to click on
+  the arrow
+- The graph view now uses as labels YAML frontmatter titles, first headings
+  level 1, or a filename without extension based on the preferences
+- Fixed a usability issue on macOS where if you wanted to select a BibTeX file
+  for your citations you had to click through intransparent buttons before being
+  able to; now you can immediately select both CSL JSON and BibTeX files
+- Parsed links will now show the correctly resolved link as titles
+- The file tree now properly cuts too long file and directory names, indicating
+  these with an ellipsis, rather than simply cutting off the text mid-letter
+- Pressing `Cmd/Ctrl+S` while a TableEditor is focused, this will now trigger an
+  update that applies the changes to the underlying document. In other words,
+  when editing a table, you can press `Cmd/Ctrl+S` twice to first apply any
+  changes from the table to the document and second save the document itself.
+- The editor now recognizes Pandoc attribute syntax (e.g., `{.unnumbered}`)
+- Added `lua` syntax highlighting support
+- Improved the tutorial to make use of the new split views
+- Citation keys in the autocomplete dropdown are now sorted by number of
+  occurrences in the text
+- Fixed the readability mode color gradient (red -> purple -> blue -> green)
+- The "Save changes" dialog is now simpler and easier to understand
+- The main editor is finally properly styled and looks more natural to work with
+- Pre-rendered citations within Zettlr now respect the composite flag, meaning
+  that `Some sentence by @Author2015` renders as
+  `Some sentence by Author (2015)` instead of `Some sentence by (Author 2015)`
+- Tags now include a measure of informativeness or uniqueness, called Inverse
+  Document Frequency (IDF); the higher this value the more informative a tag is.
+  This number is shown in the tag manager, and tags are ordered by this in some
+  places
+- The file autocomplete now also includes links to not-yet-existing files. This
+  enables you to define links to files that you may want to create at another
+  point in time and ensure that all files that link to this file include the
+  correct link
+- The editor now uses the built-in search panel from CodeMirror
+- Added support for COBOL syntax highlighting
+- Zettlr can now recognize changes to the Zettlr directory files (where things
+  such as sorting and project settings are stored), which means that, if you
+  have Zettlr open on two computers and synchronize your files, changes you make
+  in one app should be picked up by the other
+- Zettlr can now detect changes to the status of a directory as a git repository
+  during runtime
+- The "Characters without spaces" info is no longer present in the toolbar
+  counter widget; the "characters" count now represents always the count without
+  spaces across the app
+- Mermaid charts now dynamically switch themes between `default` and `dark`
+  depending on the app's display
+- In various parts of the app, URLs will now be displayed in a shortened format
+  if they are long and the space is limited
+- If you make use of glob-patterns to filter which files will be exported during
+  project exports, you will now get a visible error message if your glob-
+  patterns have removed all files so that none remain to be exported
+- Clicking on the "Project Properties" button in a directory properties popup
+  with activated project functionality now closes the popup
+- Redid the emphasis renderer to work on the SyntaxTree directly, which makes
+  the emphasis render more properly and now works much faster than before
+- Users on macOS can now disable window vibrancy
+- Non-existing citekeys in the document no longer cause the list of references
+  to be empty
+- Dark mode is now set to `system` by default for all operating systems, not
+  just macOS/Windows
+- A new "match whole word" setting allows to control whether AutoCorrect can
+  also correct partial words
+- The tutorial is now available in Dutch as well.
+- The combined file tree is now more verbose when it comes to icons: Folders
+  now always have icons to indicate that they're folders (can be overridden with
+  a project icon or a custom icon), and Markdown files have a more distinct icon
+- Made the code block autocomplete more resilient in interaction with European
+  keyboard layouts' dead key mechanism
+- Contrain tooltips to a reasonable size, mainly to prevent overly long lines
+  that are uncomfortable to read when the tooltip spans an entire fullscreen
+  window
+
+## Under the Hood
+
+- Refactored the main editor component further
+- Refactored the Sidebar panels into their own respective components
+- Upgrade Electron to `25.x.x`
+- Upgrade Pandoc to `3.1.6.2`
+- Pandoc is now also available natively for Apple Silicon (darwin arm64)
+- Upgrade Chart.js to `4.x.x`
+- Upgrade CodeMirror to version 6
+- Upgrade to Yarn v2
+- Exchange `electron-devtools-installer` with `electron-devtools-assembler`, as
+  the former appears to be unmaintained
+- Moved from Electron Builder to Electron Forge for building Debian and RPM-
+  packages, since Electron Builder seems to produce a few errors which Forge
+  doesn't
+- Switch from deprecated `@clr/icons` to `@cds/core`
+- Pandoc logs are now logged in every case
+- Improve the display and functionality of log messages
+- Switched the configuration file management for the different service providers
+  from the previously very bodged methods to the unified and new
+  PersistentDataContainer
+- Changed the default ports for the logging server to 9001 to avoid collisions
+  with PHP fpm installations on development systems
+- The yaml frontmatter title property is now its own property on file
+  descriptors to centralize the extraction logic and save some code on the
+  renderer's side
+- Extracted the ID extraction functionality to its own utility function
+- Fixed a bug that would incorrectly detect Python comments or C++ pragmas as
+  tags
+- Removed all `Meta` descriptors; now all descriptors are unified across main
+  and renderer processes
+- Documents are now no longer managed by the editor leafs. Instead, they are
+  managed by the document provider
+- Completely removed all instances of `hash`; the FSAL cache now is being called
+  with absolute file paths. Hashed paths are only used to determine the shard.
+- Exchanged `nspell` with `nodehun` so that we can load any Hunspell-compatible
+  dictionary file in Zettlr, including the previously too-complex ones such as
+  the Italian or Portuguese dictionaries
+- Fixed the build pipeline so that native Node modules are now code-signed and
+  work on macOS and Windows, meaning that `chokidar` should not need to fall
+  back to CPU intensive polling anymore
+- Sandbox print preview window iframe elements
+- The update check will no longer block the boot cycle, making start up times
+  fast even in degraded Wifi contexts where there is a connection, but extremely
+  slow
+- Zettlr now attempts to extract the version strings for supported external
+  programs (such as Pandoc, Git, and Quarto) and displays them in the About panel
+- Exchanged Zettlr Translate system with `gettext`
+- Removed the translation provider, since its remaining functionality to list
+  available dictionary files and translations has now been moved to the main
+  command hub
+- Removed the `Zettlr` class; the last remnant of the old, class-based system
+- Remove deprecated modules `svg-inline-loader`, `raw-loader`, and `file-loader`
+- Removed unused Markdown Syntax Tree tags
+- Separate frontmatter detection and inner (YAML) parse responsibilities
+- Remove the `info` property from YAML frontmatter blocks in Markdown AST
+
+# 2.3.0
+
+## GUI and Functionality
+
+- **New Feature**: You can now customize the toolbar and add or remove buttons
+  as you see fit
+- **New Feature**: You can now navigate the file tree with the arrow buttons
+  after activating the quick filter; use up and down to visually move through
+  the visible items and left/right to collapse/uncollapse a directory; use Enter
+  to "click" that item
+- **New Feature**: The document tabbar now features buttons so you can easily
+  scroll horizontally through many tabs
+- Added "Copy filename", "Copy path", and "Copy ID" items to document tabs
+  context menus (thanks to @kyaso)
+- Added "New File", "Next File", and "Previous File" buttons to the toolbar
+- The query input now gets blurred when starting a global search in order to
+  prevent the dropdown from showing up, especially during auto-searches
+- Added keyword/tag CSS class names to YAML frontmatter tags
+- Added the last modification date to the file list, even if the additional info
+  setting is turned off
+- The "restrict to directory" field will now be empty by default
+- Pressing `Tab` while the query input is focused will now directly focus the
+  restrict-to-dir input
+- The table of contents in the sidebar now shows the title of the currently
+  active file, if applicable
+- Removed the less-than-helpful file and folder removal shortcuts
+- Fixed the recent documents menu on Windows
+- Fixed wrong character count if counting without spaces
+- Fixed wrong word count for indented lists
+- Fixed wrong keyword/tag CSS class names
+- Fixed jumping of the code editor in the assets manager
+- Fixed wrongly positioned tabstops during snippets autocomplete
+- Fixed an error that would erroneously render citations in footnote previews or
+  copied text with styling
+
+## Under the Hood
+
+- Ignore `IDEA`-related files
+- Update Pandoc to `2.18`
+- Refactored the main window's store to be more modular for the upcoming
+  additional changes
+- Added an additional check for frontmatter values in code files
+
+# 2.2.6
+
+## GUI and Functionality
+
+- A malformed directory settings file now does not prevent loading the
+  directory; instead the malformed file is now removed
+- Fixed a small visual glitch on Linux where the selected file was not
+  highlighted in the file list in the thin or expanded file manager modes
+- Fixed heading ID links not working with, e.g., accents
+- Fixed heavy latency when working on a file with many related files
+
+## Under the Hood
+
+- Simplify the codeblock class hook again to significantly improve typing speed
+- Updated all dependency packages to the respective latest versions
+
+# 2.2.5
+
+## GUI and Functionality
+
+- Localized Previous/next file menu items
+- Fixed selection of words on right-click in the editor
+- Editor word selection on right-click now accepts both `'` and `’`
+- Add Fortran syntax highlighting (keyword `fortran`)
+- Fix a bug that could lead to data loss when changing documents while a table
+  has focus
+- Added an extra check so that unexpected values of `openDirectory` would not
+  prevent Zettlr from starting
+- Make the vim command line visible and style it according to the Zettlr themes
+- Clicking on the toolbar now doesn't steal the focus from other elements,
+  making it more comfortable to drag the window and immediately continue writing
+- Added slight transparency to the inline code background color so that block
+  cursors are visible inside that code
+- Resizing an image upon pasting from clipboard now works better, since the
+  aspect ratio will only be recalculated once you leave the input field (i.e. by
+  tabbing into another input); this way you can just type in a specific number
+- Disabling "render task lists" will now also disable the application of task
+  lists; this helps speed up editing long documents with many tasks
+- The main editor search now no longer automatically searches
+- When opening the main editor search, anything in the search input will now be
+  selected
+- Fix unintended global search start
+- Highlight results from global search in the main editor text
+- The code editor in the assets manager now scales with the size of the window
+- Added an option to prevent Zettlr from checking for updated translations
+
+## Under the Hood
+
+- Switched to the new code signing certificate for the windows installers
+- Write errors which are logged properly to disk
+- Display errors in the log viewer
+- Added the default Homebrew installation directory for Apple Silicon Macs in
+  order for Zettlr to find Pandoc installed via brew.
+- Improve global search typings
+
+# 2.2.4
+
+This update changes the scroll effect on the document tab bar to be smooth
+instead of snappy. To revert to the old behavior, you can use the following
+Custom CSS:
+
+```
+body div#tab-container {
+  scroll-behavior: auto;
+}
+```
+
+## GUI and Functionality
+
+- **New Feature**: You can now switch between zooming the whole GUI or just the
+  editor font size when using the zoom menu items/shortcuts
+- Restores the display of links in the related files section of the sidebar
+- Differentiate between inbound, outbound, and bidirectional links in the
+  related files section
+- Fix related files display and link reporting
+- Added a smooth scrolling effect for the tab bar
+- Added classes in order to conditionally style the related files section based
+  on the type of relation, the classes are `tags` if the relation is based on
+  keywords, `inbound` for incoming links, `outbound` for outgoing links, and
+  `bidirectional` for links from and to the said file
+- Clicking on math now places the cursor correctly, reducing friction
+- Select the image markup when clearing a rendered image by clicking on it
+- Image captions do not disappear anymore while you are editing it, even if you
+  move the mouse out of the image area
+- Improve icon alignment in the related files section
+- Relaxed conditions for emphasis rendering by just excluding word-characters
+- Tab characters are no longer detected as spelling errors
+- You can now choose to indent using tab characters instead of spaces
+- Do not close the file left to a new usaved file upon saving the file
+- Fixed a weird race condition in which the file manager would remain ignorant
+  of an in-memory file after it has been saved to disk
+- Changes to your files should now be detected immediately also on macOS
+- Fixed a bug that would disable both types of magic quotes (single + double)
+  if you disabled only one type
+- Improve styling of progress bars on all platforms
+
+## Under the Hood
+
+- Resolve links on-demand in the link provider
+- Factor out the `clickAndClear` functionality to its own helper
+- Improve editor image CSS
+- Factor out the checks to see if we can render some element to unify behavior
+  across rendering plugins
+- Update most pure Node scripts from CommonJS to ESM in order to support the new
+  versions of csso, chalk, and got
+- FINALLY managed to get fsevents to run! After about three years or so.
+- Add support for JabRef `fileDirectory`-style comments
+
+# 2.2.3
+
+## GUI and Functionality
+
+- The graph view now only updates when the underlying link structure has in fact
+  changed
+- Fixed an issue that would break project exports since we accidentally passed
+  not just Markdown and code files, but also everything else in that directory
+  to pandoc (including, but not limited to, PDFs, HTMLs, images, etc.)
+- The graph view now supports displaying labels permanently; useful for smaller
+  graphs
+- Better graph sizing
+- You can now highlight specific vertices based on text matching on its path
+- The graph view scrolling has now been replaced by moving zoom, i.e. wherever
+  your mouse cursor is when you zoom, the graph will zoom in ever so slightly
+  onto that position
+- Tags/keywords in a YAML frontmatter are now properly lowercased
+- Massively improve the speed of graph building
+- Fixed an error that would prevent the creation of new directories
+- Fixed a bug that would always export a revealJS presentation using the black
+  stylesheet
+- Fixed commented entries in the YAML frontmatter being detected as headings
+- The file tree now remembers which directories are opened for longer
+- Make the emphasis rendering plugin less aggressive
+
+## Under the Hood
+
+- Remove the dependency on the LinkProvider within the FSAL
+- The LinkProvider now only updates when necessary; easing the load on the graph
+
+# 2.2.2
+
+This update includes a long-awaited feature: Graph views. This brings Zettlr on
+par with other apps such as logseq or Obsidian. You will find the graph view in
+the stats window, which you can open as usual by clicking the statistics button
+on the toolbar. The graph will re-render as soon as something in the link
+structure of your notes changes. Rendering may take some time, however -- not
+because constructing or displaying the actual graph takes so much time, but
+rather, because resolving internal links (which can be either IDs or filenames)
+takes a long time.
+
+Within the graph view, you can interact with it in a few ways:
+
+* You can tick the checkbox to exclude isolates from rendering, that is: files
+  which are not linked to any other note
+* With the `+` and `-`-buttons, you can zoom in and out of the graph
+* Using the dropdown menu, you can restrict rendering to a single component.
+  These clusters of files are ordered by size, so the first components in the
+  list are the biggest in your network of files. Note that isolates are excluded
+  from this list
+* By utilizing the trackpad or scrollwheel of your mouse, you can scroll both
+  vertically and horizontally; dragging does not work yet
+* Clicking the target button resets the view on the graph to its origin if you
+  have scrolled someplace else
+* Clicking on a note will open it in the main window just as if you had clicked
+  on the note in the file manager
+
+Note that the graph view is still in its early stages. It works as advertised,
+but since networks can be very tricky, there is a lot of room for improvement.
+You will notice that we publish this new feature using a patch release (2.2.2
+instead of 2.3.0). The reason is that we cannot finalize this feature in any way
+without the feedback from the community. So for this feature, we would like to
+invite you to provide feedback -- not just about potential bugs, but about
+things we should improve in the visual feedback the graph view gives you.
+
+See this as an opportunity: Whereas the graph views of Roam, logseq or Obsidian
+are pretty much in a final stage, Zettlr's graph view is still a blank canvas
+upon which you can project your ideas that help us all make sense of the chaos
+that is the network of our files!
+
+## GUI and Functionality
+
+- **New Feature**: Zettlr now finally offers a graph view of all notes in the
+  statistics window; clicking on a vertex opens the file in the main editor, and
+  you can choose to hide isolates
+- The full-text search doesn't skip files whose title and/or tags match the
+  search terms anymore
+- Hovering the mouse over a document tab now shows the full path of the file
+- Ensure that in-memory files which are saved outside the workspaces are still
+  added as root files
+- Use a more appropriate cursor for resizing the split views
+
+## Under the Hood
+
+- Add d3 as a fixed dependency in `package.json`; lock to the version from
+  mermaid
+- Fix a dependency race condition in the service container
+- Make error messages more meaningful
+- Enable renderers to search for files using an internal link
+
+# 2.2.1
+
+## GUI and Functionality
+
+- Fixed an error that would under certain circumstances crash the application on
+  start
+- Fix an error that would make some actions unusable if a faulty translation was
+  provided
+- Fixed an issue where sometimes moving the cursor to the beginning of a list
+  item would misbehave
+- Zettlr now detects if a directory is a git repository and displays this
+  information in the directory properties
+- Zettlr can now also preview emphasis such as italic or bold text
+- Using an absolute path as the default image location will ensure that pasted
+  images will be inserted using absolute paths as well.
+- Sometimes, something goes wrong when you start the application; now you will
+  receive an informative message box if that happens, so that reporting problems
+  will be easier
+
+## Under the Hood
+
+- Other files are now stored in the `children` array; the `attachments` array is
+  now gone for good
+- Removed old remnants of the experimental WYSIWYG mode, since Zettlr now offers
+  this via the ensemble of all rendering plugins in the main editor
+- Incorporate the logic to disambiguate ID and filename links into
+  `FSAL::findExact()`
+- Improve findObject utility function
+- Resolve outbound links directly in the link provider
+
+# 2.2.0
+
+**Attention**: This update switches one preference in the exporters' defaults:
+`file-scope` is now removed. Remove this line from your defaults files, or reset
+them to the (new) default, if you'd like to use this in your exports as well.
+See for more info [this issue](https://github.com/Zettlr/Zettlr/issues/3103).
+
+## GUI and Functionality
+
+- Tags and keywords within a YAML frontmatter are now clickable
+- AutoCorrect values are no longer detected as spelling mistakes
+- Fix an issue with false detection of footnote reference texts
+- Fix link resolving: Now files dropped onto the editor will be easier to detect
+  as files (rather than weblinks)
+- Fixed reloading issues with very large citation databases
+- Fixed a visual glitch when choosing to "Open in a new tab" in a note preview
+- Fix a regression that inserting pasted image paths into the editor didn't work
+- Fix wrong display of citations if there was an error rendering the citation
+- The tutorial is now also available after the first start; you can reopen it
+  any time from the Help menu
+- The autocompletion popup doesn't disappear anymore if you completely remove
+  anything already written to begin anew
+- Fix a bug that would with some installations result in a blank main window.
+- Fixed a bug that would sometimes not update the tag autocompletion
+- Ensure documents are saved when renaming a directory
+- Do not show "Open Image Externally" if loading a data URL
+- Improve styling for the "No results" message on file tree filtering
+- Newly created files now always open in a new tab
+- Fixed a bug where you would receive two "paste image" dialogs if you had text
+  selected when pasting an image onto the editor
+- Fixed conflicting text decorations between strikethrough and spellchecking
+- Fixed a bug where a YAML frontmatter beginning and end would also be
+  recognized even if it was not valid. A valid YAML frontmatter must be
+  delimited by exactly three dashes/dots on their own line, and *not more*
+
+## Under the Hood
+
+- Update Pandoc to 2.17.1.1
+- Activate watchdog polling for the citeproc provider. This should reduce issues
+  with very large citation databases.
+- If the error message upon a failed database reload indicates that the file was
+  simply incomplete, the citeproc provider now attempts a second reload after a
+  delay of 5 seconds
+- Moved the workspace and root file opening logic into their own command
+- Make the ZettlrCommand base class abstract and require constraints on derived
+- Remove all calls to `global` in the renderer processes; instead properly type
+  the API provided via the window object
+- Refactor the main process:
+  - Move the FSAL, the WindowManager, and the DocumentManager into the service
+    provider realm
+  - Factor out all commands into a new CommandProvider
+  - Use singleton dependency injection to provide services to each other,
+    utilizing an AppServiceContainer
+  - Remove (almost) every dependency on the `global` object
+  - Move the littered code from the Zettlr main class into their corresponding
+    service providers
+  - Fixed the dependency hell within the FSAL
+- The app doesn't attempt to download the Vue3 devtools in production anymore
+- The date formatter now takes everything as parameters and has unit tests
+
+# 2.1.3
+
+## GUI and Functionality
+
+- Display inline math using monospaced font
+- Right-clicking citations doesn't select parts of it anymore
+- Inline-equations are now properly syntax highlighted
+- Fixed a bug that caused unintentional pastes when closing a tab using the
+  middle mouse button on Linux
+- Heavily improved the full text search: Previously, certain files that should
+  have been returned for specific search terms were not considered a match, and
+  multiple results per line were mostly not reported; additionally, search
+  results are now ordered by relevancy and the search results are marked more
+  visibly
+- Heavily improved the table editor user interface: Now the table editor will on
+  certain actions write all changes back to the document so that the possibility
+  of data loss involves a single table cell at most in case the user forgets to
+  un-focus the table. Furthermore, the table editor will now not be removed from
+  the document when it loses focus, and instead the table will be updated
+  silently
+- The log viewer now only displays errors and warnings initially
+- Fix a small visual glitch on macOS for toolbar searches
+- Added "Open in new Tab" button to link preview tooltip, when user has
+  preference "Avoid Opening Files in New Tabs" set to true
+- Fix `Use the CodeMirror default actions for Home and End` preference not
+  working on MacOS
+- Fix task item strikethrough appearing laggy
+- Fix task item strikethrough covering the preceding whitespace
+- On macOS, file tree icons are now displayed using the theme/system color. On
+  all platforms, you can customize the appearance using the selector
+  `body .tree-item clr-icon.special` (including platform/mode selectors)
+- Improve the readability mode: Now it will not render a YAML frontmatter and it
+  will additionally treat sentences smarter than before
+- Fixed an issue that would sometimes break images when you edited the caption
+  in the rendered image caption.
+- Enable resetting of the custom Zettelkasten directory
+- The default value for "Use system accent color" is now off for all platforms
+  except macOS
+- The app now remembers if you had the sidebar open, and which tab you selected
+- The app now remembers your recent global searches
+- The file tree now expands when you are filtering for files/directories
+- Translate the auto dark mode start/end setting strings
+- The ToC now displays the currently active section
+- Fix file manager always showing word count, even if user selected character
+  count in preferences
+- When clicking on a heading in the ToC, the cursor is now set to that heading
+  and the editor is focused immediately
+- Fix recent documents items not being clickable in Linux
+- Fix drag & drop of files onto the editor
+- Fix some bugs in the link opener
+
+## Under the Hood
+
+- Update Pandoc to 2.17
+- Removed the unused PDF settings from the config
+- Removed the unused `pandoc` and `xelatex` config options
+- Convert all MarkdownEditor hooks and plugins to TypeScript
+- Tests now simply transpile without type checking
+- Move service provider types to the new types directory
+- Provide `@dts` as an alias to retrieve typings
+- Move FSAL types to the new types directory
+- Convert the remaining utility functions to TypeScript
+- Polyfill the `path` module in renderer processes
+- Convert the MainSidebar component to TypeScript
+- Move out the statistics calculation from the FSAL
+- The `yarn package` and `yarn test-gui` commands now skip typechecking,
+  reducing build time by a large margin
+
+# 2.1.2
+
+## GUI and Functionality
+
+- **New Feature**: You now have more fine-grained control over how your files
+  are displayed: You can now select if the filename is always used or a title
+  or first heading level 1 is used (if applicable)
+- **New Feature**: You can now also fold nested lists
+- **New Feature**: You can now choose to display the file extensions of Markdown
+- **New Feature**: You can now choose to always only link using filenames
+- The Vim input mode of the editor started working again, so we are re-enabling
+  it with this update
+- Fixed an error that would cause the global search to malfunction if you
+  followed a link which then started a global search while the file manager was
+  hidden
+- Removed an unused preference
+- Rearranged some preferences
+- On Windows, tabbed windows will automatically hide their labels if the window
+  becomes too narrow
+- Reinstated the info on what variables you could use in the Zettelkasten
+  generator
+- Zettlr displays info text below some preferences again
+- Citations are now first-class citizens and got their own preferences tab
+- Fixed a small error that would close additional files when you renamed a file
+  that was also currently open
+- Fixed the context menu not showing during a full text search on macOS
+- When something goes wrong during opening of a new workspace or root file, the
+  error messages will now be more meaningful
+- Small improvement that will not detect Setext headings level 2 without a
+  following empty line. This prevents some instances of data loss where users
+  forget this empty line and thus accidentally create a valid simple table
+- Fixed an issue where the indentation of wrapped lines would look off after
+  changing the theme or modifying the editor font via custom CSS
+- Fixed the vim mode cursor being barely visible in dark mode
+- Done task list items will now be stroked out faster
+
+## Under the Hood
+
+- Convert the MarkdownEditor to ES modules and TypeScript
+- Make the `dot-notation` rule optional
+
+# 2.1.1
+
+## GUI and Functionality
+
+- **New Feature**: Zettlr now accounts for backlinks to the currently active
+  file, which means it now displays files which link to the current file in the
+  sidebar
+- New setting: You can now choose to hide the toolbar while in distraction-free
+  mode
+- Improved placement of the popup displayed by the Input Method Editor (IME) for
+  writing non-alphabetic characters (e.g. Chinese, Japanese, or Korean)
+- During drag&drop, you can now rest over a collapsed directory for longer than
+  two seconds to have it automatically uncollapse -- this way you can reach
+  deeper nested directories without having to stop the operation
+- Clicking a search result in the global search sidebar will now highlight it
+  in the sidebar
+- The search now also starts when you press Enter while the restriction input is
+  focused
+- If you abort moving a file by dropping it onto its source directory, Zettlr
+  will silently abort the move without nagging you about the fact that the
+  target directory obviously already contains a file of the same name
+- Renaming root-directories will now ensure the new path of the directory is
+  persisted to the configuration
+- Fix a rare error that would incapacitate the Math equation renderer
+- Fixed an error that would sometimes prevent the autocomplete popup to close
+  until the main window was closed and reopened (or the app is restarted)
+- Fixed an error that would prevent a global search if no directory is selected
+- Fixed a bug that disabled the table insertion toolbar button in the previous
+  version
+- Fixed an issue preventing updates of lists in the preferences
+- Fixed an issue not displaying the currently selected theme in the preferences
+
+## Under the Hood
+
+- Update to Electron 16
+- Make sure to de-proxy the tag database before sending it to the MdEditor
+- Remove the `openDocuments` array from the Vue component data
+- Convert the MainEditor component to TypeScript
+- Added a `@providers` alias for easy referencing of service providers
+
 # 2.1.0
 
 ## GUI and Functionality
@@ -10,7 +3535,7 @@
   you attempted to remove internal links completely upon export
 - Fixed `Cmd/Ctrl-Click`-behavior on footnotes
 - Dragging and dropping files (both from the desktop and the sidebar) now always
-  inserts relative paths.
+  inserts relative paths
 - More reactive updating of the related files section
 - Improvements during insertion of snippets
 - The footnote editor now has a consistent background color in dark mode
@@ -32,14 +3557,32 @@
 - Reinstated the ability to use pure number tags or hexadecimal numbers as tags
 - Using the shortcut `Ctrl-Shift-V` to paste something as plain text will no
   longer paste it twice on Windows and Linux
+- Zettlr can now be started minimized (in the tray/notification area) by passing
+  the CLI flag `--launch-minimized`, which means the main window will not be
+  shown after launching the app
+- On single-file export, unsaved changes are now also exported
+- MagicQuotes can now surround selections
+- File duplication will now make sure to always create new files instead of
+  overwriting existing ones
+- Attempt to scroll back to the correct position after applying remote changes
+- Adapt styles on Windows
+- You can now specify a TeX template and an HTML template for projects
+- Fix double titlebars on Windows and Linux when displaying modals
+- Following internal links now also works for systems in which the ID is part of
+  the file name
+- Updated the display name in the Add/Remove Programs entry for Windows
+- Task list items in the editor are now correctly spaced again
+- Fixed a bug that would render it impossible to open images and files with non-
+  ASCII characters within their path
+- You can now copy the underlying equation code for LaTeX equations
 
 ## Under the Hood
 
 - Added a further check to the filter copying. Since the filters that ship with
   Zettlr are bound to the inner workings of the app, we should always overwrite
   them if applicable (to ensure they are updated with the app), unlike the
-  defaults which people should be able to modify with us messing with them
-- Sanitized and standardized all Vue component names and application entry points
+  defaults which people should be able to modify without us messing with them
+- Sanitized and standardized all Vue component names and app entry points
 - Fix a whole bunch of linter warnings
 - Remove the custom event system (`$on`, `$off`, and `$once`) in preparation for
   Vue 3
@@ -56,8 +3599,16 @@
   before starting the debugger
 - Cleaned up the handler for rendering task-list items
 - Switched the windows update, tag-manager, stats, quicklook, project-properties,
-  print, paste-image, log-viewer, error, assets, and about to TypeScript
+  print, paste-image, log-viewer, error, assets, preferences, and about to
+  TypeScript
 - `extractYamlFrontmatter` does not require the linefeed anymore
+- Remove the `openFile` method from the main Zettlr object. Use
+  `getDocumentManager().openFile` instead to open a file
+- Add an automatic updater for `CITATION.cff`
+- Zettlr now extracts outlinks from a file and adds them to descriptors
+- Added `@common` as a shorthand alias for importing files within the `common`-
+  directory
+- The file autocompletion database now uses the full paths to index files
 
 # 2.0.3
 

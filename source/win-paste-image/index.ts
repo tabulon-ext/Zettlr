@@ -13,11 +13,16 @@
  */
 
 import { createApp } from 'vue'
+import { createPinia } from 'pinia'
 import App from './App.vue'
-import windowRegister from '../common/modules/window-register'
+import windowRegister from '@common/modules/window-register'
 
 // The first thing we have to do is run the window controller
 windowRegister()
-
-const app = createApp(App)
-app.mount('#app')
+  .then(() => {
+    const pinia = createPinia()
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const app = createApp(App).use(pinia)
+    app.mount('#app')
+  })
+  .catch(e => console.error(e))

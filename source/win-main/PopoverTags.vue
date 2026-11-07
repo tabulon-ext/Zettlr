@@ -1,46 +1,39 @@
 <template>
-  <div class="tag-cloud">
-    <h3>{{ tagCloudTitle }}</h3>
+  <PopoverWrapper v-bind:target="props.target" v-on:close="emit('close')">
+    <div class="tag-cloud">
+      <h3>{{ tagCloudTitle }}</h3>
+      <TabBar
+        v-bind:tabs="tabs"
+        v-bind:current-tab="sorting"
+        v-on:tab="sorting = $event as 'count'|'name'|'idf'"
+      ></TabBar>
 
-    <p v-if="suggestions.length > 0">
-      <TokenList
-        v-model="suggestions"
-        v-bind:label="tagSuggestionsLabel"
-      ></TokenList>
+      <TextControl
+        ref="filter"
+        v-model="query"
+        v-bind:placeholder="filterPlaceholder"
+      ></TextControl>
 
-      <ButtonControl
-        v-bind:label="addButtonLabel"
-        v-on:click="shouldAddSuggestions = true"
-      ></ButtonControl>
-    </p>
-
-    <hr v-if="suggestions.length > 0">
-
-    <TabBar
-      v-bind:tabs="tabs"
-      v-bind:current-tab="sorting"
-      v-on:tab="sorting = $event"
-    ></TabBar>
-
-    <TextControl
-      ref="filter"
-      v-model="query"
-      v-bind:placeholder="filterPlaceholder"
-    ></TextControl>
-
-    <div
-      v-for="tag, idx in filteredTags"
-      v-bind:key="idx"
-      class="tag"
-      v-on:click="handleClick(tag.text)"
-    >
-      <!-- Tags have a count, text, and a className -->
-      {{ tag.text }} ({{ tag.count }}x)
+      <div
+        v-for="tag, idx in filteredTags"
+        v-bind:key="idx"
+        class="tag"
+        v-bind:title="tag.desc"
+        v-on:click="searchAndClose(tag.name)"
+      >
+        <!-- Tags have a name, a count, and optionally a color -->
+        <span
+          v-if="tag.color !== undefined"
+          class="color-circle"
+          v-bind:style="`background-color: ${tag.color};`"
+        ></span>
+        {{ tag.name }} ({{ tag.files.length }}x)
+      </div>
     </div>
-  </div>
+  </PopoverWrapper>
 </template>
 
-<script>
+<script setup lang="ts">
 /**
  * @ignore
  * BEGIN HEADER
@@ -55,84 +48,72 @@
  * END HEADER
  */
 
-import TextControl from '../common/vue/form/elements/Text.vue'
-import ButtonControl from '../common/vue/form/elements/Button.vue'
-import TokenList from '../common/vue/form/elements/TokenList.vue'
-import TabBar from '../common/vue/TabBar.vue'
-import { trans } from '../common/i18n-renderer'
+import PopoverWrapper from '@common/vue/PopoverWrapper.vue'
+import TextControl from '@common/vue/form/elements/TextControl.vue'
+import TabBar, { type TabbarControl } from '@common/vue/TabBar.vue'
+import { trans } from '@common/i18n-renderer'
+import { ref, computed, onMounted } from 'vue'
+import { useConfigStore, useTagsStore } from 'source/pinia'
 
-export default {
-  name: 'PopoverTags',
-  components: {
-    TextControl,
-    TokenList,
-    ButtonControl,
-    TabBar
-  },
-  data: function () {
-    return {
-      tags: [],
-      tabs: [
-        // TODO: Translate
-        { id: 'name', label: 'Name' },
-        { id: 'count', label: 'Count' }
-      ],
-      suggestions: [], // Tag suggestions for the currently active file
-      query: '',
-      searchForTag: '',
-      sorting: 'name', // Can be "name" or "count"
-      shouldAddSuggestions: false
+const props = defineProps<{
+  target: HTMLElement
+  // activeFile?: OpenDocument
+}>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'search-tag', tagName: string): void
+}>()
+
+const tagStore = useTagsStore()
+const configStore = useConfigStore()
+
+const filter = ref<typeof TextControl|null>(null)
+
+const tabs: TabbarControl[] = [
+  { id: 'name', label: trans('Name'), target: 'name' },
+  { id: 'count', label: trans('Count'), target: 'count' },
+  { id: 'idf', label: 'IDF', target: 'idf' }
+]
+
+const query = ref('')
+const sorting = ref<'name'|'count'|'idf'>('name')
+
+const filterPlaceholder = trans('Filter tags…')
+const tagCloudTitle = trans('Tag Cloud')
+// const tagSuggestionsLabel = trans('Suggested tags for the current file')
+// const addButtonLabel = trans('Add to file')
+
+const sortedTags = computed(() => {
+  // Sorts the tags based on either name or count
+  const sorted = tagStore.tags.map(elem => elem)
+  const languagePreferences = [ configStore.config.appLang, 'en' ]
+  const coll = new Intl.Collator(languagePreferences, { numeric: true })
+  sorted.sort((a, b) => {
+    if (sorting.value === 'name') {
+      return coll.compare(a.name, b.name)
+    } else if (sorting.value === 'idf') {
+      return b.idf - a.idf
+    } else {
+      return b.files.length - a.files.length
     }
-  },
-  computed: {
-    popoverData: function () {
-      return {
-        // As soon as this is !== '', the app will begin a search for the tag
-        searchForTag: this.searchForTag,
-        addSuggestionsToFile: this.shouldAddSuggestions,
-        suggestions: this.suggestions
-      }
-    },
-    filterPlaceholder: function () {
-      return trans('dialog.filter_tags')
-    },
-    tagCloudTitle: function () {
-      return trans('dialog.tag_cloud.title')
-    },
-    tagSuggestionsLabel: function () {
-      return trans('dialog.tag_cloud.suggestions_label')
-    },
-    addButtonLabel: function () {
-      return trans('dialog.tag_cloud.add_to_file')
-    },
-    sortedTags: function () {
-      // Sorts the tags based on either name or count
-      const sorted = this.tags.map(elem => elem)
-      const languagePreferences = [ global.config.get('appLang'), 'en' ]
-      const coll = new Intl.Collator(languagePreferences, { 'numeric': true })
-      sorted.sort((a, b) => {
-        if (this.sorting === 'name') {
-          return coll.compare(a.text, b.text)
-        } else {
-          return b.count - a.count
-        }
-      })
-      return sorted
-    },
-    filteredTags: function () {
-      return this.sortedTags.filter(tag => {
-        return tag.text.toLowerCase().includes(this.query.toLowerCase())
-      })
-    }
-  },
-  mounted: function () {
-    this.$refs.filter.focus()
-  },
-  methods: {
-    handleClick: function (text) {
-      this.searchForTag = text // Handle click here means: Start a search
-    }
-  }
+  })
+  return sorted
+})
+
+const filteredTags = computed(() => {
+  return sortedTags.value.filter(tag => {
+    return tag.name.toLowerCase().includes(query.value.toLowerCase())
+  })
+})
+
+onMounted(() => {
+  filter.value?.focus()
+})
+
+function searchAndClose (tagName: string): void {
+  emit('search-tag', `#${tagName}`)
+  emit('close')
 }
 </script>
 
@@ -140,6 +121,15 @@ export default {
 body {
   .tag-cloud {
     padding: 5px;
+
+    h3 {
+      text-align: center;
+      padding-bottom: 5px;
+    }
+    .system-tablist,
+    .form-control {
+      padding: 5px;
+    }
 
     .tag {
       display: inline-block;
@@ -151,6 +141,14 @@ body {
 
       &:hover {
         background-color: rgba(70, 70, 70, .3);
+      }
+
+      .color-circle {
+        display: inline-block;
+        width: 9px;
+        height: 9px;
+        border: 1px solid white;
+        border-radius: 50%;
       }
     }
   }

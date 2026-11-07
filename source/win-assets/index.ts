@@ -14,20 +14,25 @@
 
 import { createApp } from 'vue'
 import App from './App.vue'
-import windowRegister from '../common/modules/window-register'
+import { createPinia } from 'pinia'
+import windowRegister from '@common/modules/window-register'
 
-const ipcRenderer = (window as any).ipc as Electron.IpcRenderer
+const ipcRenderer = window.ipc
 
 // The first thing we have to do is run the window controller
 windowRegister()
+  .then(() => {
+    const pinia = createPinia()
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+    const app = createApp(App).use(pinia)
+    app.mount('#app')
 
-const app = createApp(App)
-app.mount('#app')
-
-// This window will be closed immediately on a window-close command
-ipcRenderer.on('shortcut', (event, shortcut) => {
-  if (shortcut === 'close-window') {
-    ipcRenderer.send('window-controls', { command: 'win-close' })
-    // TODO: Probably it's nice to see if there are any unsaved changes before?
-  }
-})
+    // This window will be closed immediately on a window-close command
+    ipcRenderer.on('shortcut', (event, shortcut) => {
+      if (shortcut === 'close-window') {
+        ipcRenderer.send('window-controls', { command: 'win-close' })
+        // TODO: Probably it's nice to see if there are any unsaved changes before?
+      }
+    })
+  })
+  .catch(e => console.error(e))

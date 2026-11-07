@@ -1,6 +1,9 @@
 const { spawn } = require('child_process')
 const fs = require('fs').promises
 const path = require('path')
+const { FusesPlugin } = require('@electron-forge/plugin-fuses')
+const { FuseV1Options, FuseVersion } = require('@electron/fuses')
+const { getGitHash } = require('./scripts/get-git-hash.js')
 
 /**
  * This function runs the get-pandoc script in order to download the requested
@@ -31,14 +34,16 @@ async function downloadPandoc (platform, arch) {
     // To not mess with Electron forge's output, suppress this processes output.
     // But we should reject if there's any error output.
     let shouldReject = false
-    shellProcess.stderr.on('data', (data) => {
+    let stderrDetails = ""
+    shellProcess.stderr.on('data', (_data) => {
       shouldReject = true
+      stderrDetails += _data
     })
 
     // Resolve or reject once the process has finished.
-    shellProcess.on('close', (code, signal) => {
+    shellProcess.on('close', (code, _signal) => {
       if (code !== 0 || shouldReject) {
-        reject(new Error(`Failed to download Pandoc: Process quit with code ${code}. If the code is 0, then there was error output.`))
+        reject(new Error(`Failed to download Pandoc: Process quit with code ${code}. If the code is 0, then there was error output. ${stderrDetails ? ("Error output: " + stderrDetails) : ""}`))
       } else {
         resolve()
       }
@@ -51,9 +56,55 @@ async function downloadPandoc (platform, arch) {
   })
 }
 
+/**
+ * Since all our renderers share the same static HTML file and the same preload
+ * script, we can save on a LOT of repeated code by just generating the entry
+ * points with a tiny utility function.
+ * 
+ * NOTE:
+ * 
+ * * This function assumes that the entry point lives in a folder and has an
+ * `index.ts` entry point file.
+ *
+ * @param   {string}  name    The name of the entry point (this determines, e.g., folder names in the app)
+ * @param   {string}  folder  The containing folder's name (e.g., `win-about`).
+ *
+ * @return  {any}             The generated entrypoint
+ */
+function generateRendererEntrypoint (name, folder) {
+  return {
+    html: './static/index.htm',
+    js: `./source/${folder}/index.ts`,
+    name,
+    preload: {
+      js: './source/common/modules/preload/index.ts'
+    }
+  }
+}
+
 module.exports = {
   hooks: {
+    preStart: async (forgeConfig) => {
+      if (process.env.ZETTLR_DISABLE_UPDATE_CHECK !== undefined) {
+        console.warn('Detected the environment variable ZETTLR_DISABLE_UPDATE_CHECK. This build of Zettlr WILL NOT HAVE UPDATES ENABLED. Please ensure this was intended!')
+      }
+    },
     generateAssets: async (forgeConfig, targetPlatform, targetArch) => {
+      // Two steps need to be done here. First, we need to set an environment
+      // variable that is then accessible by the webpack process so that we can
+      // either include or not include fsevents for macOS platforms.
+      process.env.BUNDLE_FSEVENTS = (targetPlatform === 'darwin') ? '1' : '0'
+
+      // This will be baked into the binary so that we know which commit this
+      // build was based off on.
+      process.env.GIT_COMMIT_HASH = await getGitHash()
+
+      // Second, we need to make sure we can bundle Pandoc.
+      if (process.env.BUNDLE_PANDOC === '0') {
+        console.warn('Detected environment variable BUNDLE_PANDOC -- this build will not be bundled with Pandoc!')
+        return
+      }
+
       const isMacOS = targetPlatform === 'darwin'
       const isLinux = targetPlatform === 'linux'
       const isWin32 = targetPlatform === 'win32'
@@ -76,9 +127,9 @@ module.exports = {
         forgeConfig.packagerConfig.extraResource.push(path.join(__dirname, './resources/pandoc.exe'))
       } else if (supportsPandoc && (isMacOS || isLinux)) {
         // Download Pandoc either for macOS or Linux ...
-        const platform = (isMacOS) ? 'darwin' : 'linux'
-        // ... and the ARM version if we're downloading for Linux ARM, else x64.
-        const arch = (isLinux && isArm64) ? 'arm' : 'x64'
+        const platform = isMacOS ? 'darwin' : 'linux'
+        // ... and the ARM or x64 version.
+        const arch = isArm64 ? 'arm' : 'x64'
         try {
           await fs.lstat(path.join(__dirname, `./resources/pandoc-${platform}-${arch}`))
         } catch (err) {
@@ -92,13 +143,67 @@ module.exports = {
         // If someone is building this on an unsupported platform, drop a warning.
         console.log(`\nBuilding for an unsupported platform/arch-combination ${targetPlatform}/${targetArch} - not bundling Pandoc.`)
       }
+    },
+    postMake: async (forgeConfig, makeResults) => {
+      const basePath = __dirname
+      const releaseDir = path.join(basePath, 'release')
+
+      // Ensure the output dir exists
+      try {
+        await fs.stat(releaseDir)
+      } catch (err) {
+        await fs.mkdir(releaseDir, { recursive: true })
+      }
+
+      // makeResults is an array for each maker that has the keys `artifacts`,
+      // `packageJSON`, `platform`, and `arch`.
+      for (const result of makeResults) {
+        // Get the necessary information from the object
+        const { version, productName } = result.packageJSON
+
+        // NOTE: Other makers may produce more than one artifact, but I'll have
+        // to hardcode what to do in those cases.
+        if (result.artifacts.length > 1) {
+          throw new Error(`More than one artifact generated -- please resolve ambiguity for ${result.platform} ${result.arch} in build script.`)
+        }
+
+        const sourceFile = result.artifacts[0]
+        const ext = path.extname(sourceFile)
+
+        // NOTE: Arch needs to vary depending on the target platform
+        let arch = result.arch
+        if (arch === 'x64' && ext === '.deb') {
+          arch = 'amd64' // Debian x64
+        } else if (arch === 'x64' && [ '.rpm', '.AppImage' ].includes(ext)) {
+          arch = 'x86_64' // Fedora x64 and AppImage x64
+        } else if (arch === 'arm64' && ext === '.rpm') {
+          arch = 'aarch64' // Fedora ARM
+        } // Else: Keep it at either x64 or arm64
+
+        // Now we can finally build the correct file name
+        const baseName = `${productName}-${version}-${arch}${ext}`
+
+        // Move the file
+        await fs.rename(sourceFile, path.join(releaseDir, baseName))
+      }
     }
+  },
+  rebuildConfig: {
+    // Since we must build native modules for both x64 as well as arm64, we have
+    // to explicitly build it everytime for the correct architecture
+    force: false // NOTE: By now covered by the global flag on packaging.
   },
   packagerConfig: {
     appBundleId: 'com.zettlr.app',
     // This info.plist file contains file association for the app on macOS.
     extendInfo: './scripts/assets/info.plist',
-    asar: true,
+    asar: {
+      // We must add native node modules to this option. Doing so ensures that
+      // the modules will be code-signed. (They still end up in the final
+      // app.asar file, but they will be code-signed.) Code signing these dylibs
+      // is required on macOS for the Node process to properly load them.
+      unpack: '*.{node,dll}'
+    },
     darwinDarkModeSupport: 'true',
     // Electron-forge automatically adds the file extension based on OS
     icon: './resources/icons/icon',
@@ -127,18 +232,25 @@ module.exports = {
     // notarization.
     osxNotarize: ('APPLE_ID' in process.env && 'APPLE_ID_PASS' in process.env)
       ? {
-          appleId: process.env['APPLE_ID'],
-          appleIdPassword: process.env['APPLE_ID_PASS']
+          tool: 'notarytool',
+          appleId: process.env.APPLE_ID,
+          appleIdPassword: process.env.APPLE_ID_PASS,
+          teamId: process.env.APPLE_TEAM_ID
         }
       : false,
-    extraResource: [
-      'resources/icons/icon.code.icns'
-    ]
+    // On macOS, we need to provide the app icon so that it gets copied into the
+    // resources directory. After the `generateAssets` step, this will also
+    // include the Pandoc binary (this is why we cannot leave `extraResource`
+    // undefined).
+    extraResource: process.platform === 'darwin' ? [
+      'resources/icons/icon.code.icns',
+      'resources/icons/Assets.car' // Contains the new Liquid Glass app icon
+    ] : []
   },
   plugins: [
-    [
-      '@electron-forge/plugin-webpack',
-      {
+    {
+      name: '@electron-forge/plugin-webpack',
+      config: {
         mainConfig: './webpack.main.config.js',
         // Since electron-forge v6.0.0-beta.58, this property controls the CSP
         // for the development process. Since the defaults by electron-forge are
@@ -147,116 +259,93 @@ module.exports = {
         // basically copying the CSP from the HTML-files, but with 'unsafe-eval'
         // added (which webpack needs for the sourcemaps).
         devContentSecurityPolicy: "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        // The default port for php-fpm is 9000, and since forge and PHP will
+        // collide on every system on which PHP is installed, we change the
+        // default ports for both the logger and the dev servers. We have to set
+        // both ports, because changing only one doesn't solve the issue.
+        port: 3000,
+        loggerPort: 9001,
         renderer: {
           config: './webpack.renderer.config.js',
           entryPoints: [
-            {
-              html: './source/win-main/index.htm',
-              js: './source/win-main/index.ts',
-              name: 'main_window',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-print/index.htm',
-              js: './source/win-print/index.ts',
-              name: 'print',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-log-viewer/index.htm',
-              js: './source/win-log-viewer/index.ts',
-              name: 'log_viewer',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-quicklook/index.htm',
-              js: './source/win-quicklook/index.ts',
-              name: 'quicklook',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-preferences/index.htm',
-              js: './source/win-preferences/index.ts',
-              name: 'preferences',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-tag-manager/index.htm',
-              js: './source/win-tag-manager/index.ts',
-              name: 'tag_manager',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-paste-image/index.htm',
-              js: './source/win-paste-image/index.ts',
-              name: 'paste_image',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-error/index.htm',
-              js: './source/win-error/index.ts',
-              name: 'error',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-about/index.htm',
-              js: './source/win-about/index.ts',
-              name: 'about',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-stats/index.htm',
-              js: './source/win-stats/index.ts',
-              name: 'stats',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-assets/index.htm',
-              js: './source/win-assets/index.ts',
-              name: 'assets',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-update/index.htm',
-              js: './source/win-update/index.ts',
-              name: 'update',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            },
-            {
-              html: './source/win-project-properties/index.htm',
-              js: './source/win-project-properties/index.ts',
-              name: 'project_properties',
-              preload: {
-                js: './source/common/modules/preload/index.ts'
-              }
-            }
+            // These are all the individual windows the app uses. NOTE that the
+            // entry point names are not arbitrary but determine the variable
+            // names (see declarations in global.d.ts).
+            generateRendererEntrypoint('main_window', 'win-main'),
+            generateRendererEntrypoint('print', 'win-print'),
+            generateRendererEntrypoint('log_viewer', 'win-log-viewer'),
+            generateRendererEntrypoint('preferences', 'win-preferences'),
+            generateRendererEntrypoint('tag_manager', 'win-tag-manager'),
+            generateRendererEntrypoint('paste_image', 'win-paste-image'),
+            generateRendererEntrypoint('error', 'win-error'),
+            generateRendererEntrypoint('about', 'win-about'),
+            generateRendererEntrypoint('stats', 'win-stats'),
+            generateRendererEntrypoint('assets', 'win-assets'),
+            generateRendererEntrypoint('update', 'win-update'),
+            generateRendererEntrypoint('project_properties', 'win-project-properties'),
+            generateRendererEntrypoint('splash_screen', 'win-splash-screen'),
+            generateRendererEntrypoint('onboarding', 'win-onboarding')
           ]
         }
       }
-    ]
+    },
+    // When building for production, turn off a few fuses that disable certain
+    // debug controls of the app.
+    ...((process.env.NODE_ENV === 'production')
+      ? [new FusesPlugin({
+          version: FuseVersion.V1,
+          [FuseV1Options.RunAsNode]: false,
+          [FuseV1Options.EnableCookieEncryption]: true,
+          [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
+          [FuseV1Options.EnableNodeCliInspectArguments]: false,
+          [FuseV1Options.GrantFileProtocolExtraPrivileges]: true
+        })]
+      : [])
+  ],
+  makers: [
+    {
+      name: '@electron-forge/maker-deb',
+      config: {
+        options: {
+          name: 'zettlr',
+          bin: 'Zettlr', // See packagerConfig.name property,
+          categories: [ 'Office', 'Education', 'Science' ],
+          section: 'editors',
+          // size: 500, // NOTE: Estimate, need to refine
+          description: 'Your one-stop publication workbench.',
+          productDescription: 'Your one-stop publication workbench.',
+          recommends: [ 'quarto', 'pandoc', 'texlive | texlive-base | texlive-full' ],
+          genericName: 'Markdown Editor',
+          // Electron forge recommends 512px
+          icon: './resources/icons/png/512x512.png',
+          priority: 'optional',
+          mimeType: [ 'text/markdown', 'application/x-tex', 'application/json', 'application/yaml' ],
+          maintainer: 'Hendrik Erz',
+          homepage: 'https://www.zettlr.com'
+        }
+      }
+    },
+    {
+      name: '@electron-forge/maker-rpm',
+      config: {
+        options: {
+          name: 'zettlr',
+          bin: 'Zettlr', // See packagerConfig.name property,
+          categories: [ 'Office', 'Education', 'Science' ],
+          description: 'Your one-stop publication workbench.',
+          productDescription: 'Your one-stop publication workbench.',
+          productName: 'Zettlr',
+          genericName: 'Markdown Editor',
+          // Electron forge recommends 512px
+          icon: './resources/icons/png/512x512.png',
+          license: 'GPL-3.0',
+          mimeType: [ 'text/markdown', 'application/x-tex', 'application/json', 'application/yaml' ],
+          homepage: 'https://www.zettlr.com'
+        }
+      }
+    },
+    {
+      name: '@electron-forge/maker-zip'
+    }
   ]
 }
